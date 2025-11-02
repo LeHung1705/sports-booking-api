@@ -24,7 +24,8 @@ public class Notification {
 
     private String title;
     private String body;
-    private Boolean read = false;
+    @Column(name = "`read`")
+    private Boolean read;
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
     // Getters & Setters
