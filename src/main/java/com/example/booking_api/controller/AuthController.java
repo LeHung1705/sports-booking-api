@@ -16,6 +16,11 @@ public class AuthController {
 
     private final AuthService authService;
 
+    @GetMapping("/test")
+    public String test() {
+        return "Backend is running!";
+    }
+
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
         try {

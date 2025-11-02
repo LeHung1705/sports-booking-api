@@ -11,6 +11,7 @@ import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.UserRecord;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -66,30 +67,40 @@ public class AuthService {
         );
     }
 
-    public LoginResponse login (LoginRequest request) {
+    public LoginResponse login(LoginRequest request) {
         try {
             if (request.getEmail() == null || request.getPassword() == null) {
                 throw new IllegalArgumentException("Missing email or password");
             }
 
-            String firebaseLoginUrl = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=[YOUR_FIREBASE_API_KEY]";
+            String firebaseLoginUrl =
+                    "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=AIzaSyCms5-dO8nbnmqBaK9GoplPTXUbMHnsKLc";
 
             Map<String, Object> body = new HashMap<>();
             body.put("email", request.getEmail());
             body.put("password", request.getPassword());
             body.put("returnSecureToken", true);
 
-            // 🧠 Đơn giản hóa: mock login thành công (vì ta không gọi thật)
-            Map<String, Object> user = new HashMap<>();
-            user.put("email", request.getEmail());
-            user.put("full_name", "Le Hung");
+            RestTemplate restTemplate = new RestTemplate();
+            Map<String, Object> response = restTemplate.postForObject(firebaseLoginUrl, body, Map.class);
 
-            String mockToken = "FAKE_TOKEN_FOR_TEST";
+            String idToken = (String) response.get("idToken");
+            String localId = (String) response.get("localId");
 
-            return new LoginResponse(mockToken, user);
+            User user = userRepository.findByEmail(request.getEmail())
+                    .orElseThrow(() -> new RuntimeException("User not found"));
 
-        } catch (IllegalArgumentException e) {
-            throw new RuntimeException("400: Missing data");
+            Map<String, Object> userInfo = new HashMap<>();
+            userInfo.put("email", user.getEmail());
+            userInfo.put("full_name", user.getFullName());
+            userInfo.put("firebaseUid", user.getFirebaseUid());
+
+            return new LoginResponse(idToken, userInfo);
+
+        } catch (Exception e) {
+            throw new RuntimeException("403: Login failed - " + e.getMessage());
         }
     }
+
+
 }

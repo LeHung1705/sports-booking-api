@@ -28,7 +28,7 @@ public class Payment {
     private String providerTxnRef;
     private OffsetDateTime paidAt;
 
-    @Column(columnDefinition = "jsonb")
+    @Column(name = "return_payload", columnDefinition = "json")
     private String returnPayload;
 
     private OffsetDateTime createdAt = OffsetDateTime.now();
