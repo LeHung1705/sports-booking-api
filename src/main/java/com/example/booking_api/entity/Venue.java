@@ -55,4 +55,7 @@ public class Venue {
 
     @OneToMany(mappedBy = "venue", fetch = FetchType.LAZY)
     private List<Court> courts;
+
+    @OneToMany(mappedBy = "venue", fetch = FetchType.LAZY)
+    private List<Review> reviews;
 }

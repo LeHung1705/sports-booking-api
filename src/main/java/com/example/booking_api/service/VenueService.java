@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -59,7 +60,52 @@ public class VenueService {
                 .build();
     }
 
-    public List<VenueListResponse> searchVenues(VenueListRequest request) {
+    public List<VenueListResponse> search(VenueListRequest req) {
+        try {
+            List<Object> rawIds = venueRepository.findIds(
+                    nullIfBlank(req.getQ()),
+                    nullIfBlank(req.getCity()),
+                    nullIfBlank(req.getSport()),
+                    req.getLat(),
+                    req.getLng(),
+                    req.getRadius()
+            );
 
+            if (rawIds.isEmpty()) {
+                return List.of();
+            }
+
+            List<UUID> ids = rawIds.stream()
+                    .map(o -> UUID.fromString(o.toString()))
+                    .toList();
+
+
+            List<Venue> venues = venueRepository.findByIdIn(ids);
+
+            return venues.stream().map(v ->
+                    VenueListResponse.builder()
+                            .id(v.getId())
+                            .name(v.getName())
+                            .address(v.getAddress())
+                            .imageUrl(v.getImageUrl())
+                            .courts(v.getCourts() == null ? List.of()
+                                    : v.getCourts().stream()
+                                    .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
+                                    .map(c -> VenueListResponse.CourtItem.builder()
+                                            .id(c.getId())
+                                            .name(c.getName())
+                                            .sport(c.getSport() == null ? null : c.getSport().name())
+                                            .build())
+                                    .toList())
+                            .build()
+            ).toList();
+
+        }catch (Exception e){
+            throw new RuntimeException("QUERY_ERROR", e);
+        }
+    }
+
+    private String nullIfBlank(String s) {
+        return (s == null || s.isBlank()) ? null : s.trim();
     }
 }

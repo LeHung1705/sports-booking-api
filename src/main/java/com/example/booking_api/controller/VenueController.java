@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/venues")
@@ -50,6 +51,17 @@ public class VenueController {
             return ResponseEntity.ok(venues);
         } catch (RuntimeException e) {
             return ResponseEntity.status(500).body(Map.of("message", "Query error"));
+        }
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getVenueById(@PathVariable UUID id) {
+        try {
+
+        }catch (RuntimeException e) {
+            return ResponseEntity.status(404).body(Map.of(
+                    "message", "Không tìm thấy sân"
+            ));
         }
     }
 }
