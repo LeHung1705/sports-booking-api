@@ -1,9 +1,6 @@
 package com.example.booking_api.service;
 
-import com.example.booking_api.dto.VenueCreateRequest;
-import com.example.booking_api.dto.VenueCreateResponse;
-import com.example.booking_api.dto.VenueListRequest;
-import com.example.booking_api.dto.VenueListResponse;
+import com.example.booking_api.dto.*;
 import com.example.booking_api.entity.User;
 import com.example.booking_api.entity.Venue;
 import com.example.booking_api.repository.UserRepository;
@@ -20,7 +17,7 @@ public class VenueService {
     private final VenueRepository venueRepository;
     private final UserRepository userRepository;
 
-    public VenueCreateResponse create(String firebaseUid, VenueCreateRequest req) {
+    public VenueCreateResponse createVenue(String firebaseUid, VenueCreateRequest req) {
         User owner = userRepository.findByFirebaseUid(firebaseUid)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -60,7 +57,7 @@ public class VenueService {
                 .build();
     }
 
-    public List<VenueListResponse> search(VenueListRequest req) {
+    public List<VenueListResponse> searchVenues(VenueListRequest req) {
         try {
             List<Object> rawIds = venueRepository.findIds(
                     nullIfBlank(req.getQ()),
@@ -105,6 +102,9 @@ public class VenueService {
         }
     }
 
+    public VenueDetailResponse getVenueDetail(UUID id) {
+        return null;
+    }
     private String nullIfBlank(String s) {
         return (s == null || s.isBlank()) ? null : s.trim();
     }

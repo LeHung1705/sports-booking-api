@@ -12,19 +12,23 @@ public class VenueDetailResponse {
     private UUID id;
     private String name;
     private String address;
+    private String district;
+    private String city;
+    private String phone;
+    private String description;
+    private String imageUrl;
+    private Boolean isActive;
     private List<CourtItem> courts;
     private List<ReviewItem> reviews;
 
-    @Data
-    @Builder
+    @Data @Builder
     public static class CourtItem {
         private UUID id;
         private String name;
         private String sport;
     }
 
-    @Data
-    @Builder
+    @Data @Builder
     public static class ReviewItem {
         private UUID id;
         private Short rating;

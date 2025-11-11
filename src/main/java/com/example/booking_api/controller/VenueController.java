@@ -1,10 +1,7 @@
 package com.example.booking_api.controller;
 
 
-import com.example.booking_api.dto.VenueCreateRequest;
-import com.example.booking_api.dto.VenueCreateResponse;
-import com.example.booking_api.dto.VenueListRequest;
-import com.example.booking_api.dto.VenueListResponse;
+import com.example.booking_api.dto.*;
 import com.example.booking_api.service.VenueService;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Valid;
@@ -26,7 +23,7 @@ public class VenueController {
     @PostMapping
     public ResponseEntity<?> createVenue(@AuthenticationPrincipal String firebaseUid, @Valid @RequestBody VenueCreateRequest request) {
         try {
-            VenueCreateResponse venue = venueService.create(firebaseUid, request);
+            VenueCreateResponse venue = venueService.createVenue(firebaseUid, request);
             return ResponseEntity.status(201).body(venue);
         }catch (ConstraintViolationException e) {
             return ResponseEntity.badRequest().body(Map.of(
@@ -47,7 +44,7 @@ public class VenueController {
     @GetMapping
     public ResponseEntity<?> listVenues(@Valid VenueListRequest request) {
         try {
-            List<VenueListResponse> venues = venueService.search(request);
+            List<VenueListResponse> venues = venueService.searchVenues(request);
             return ResponseEntity.ok(venues);
         } catch (RuntimeException e) {
             return ResponseEntity.status(500).body(Map.of("message", "Query error"));
@@ -57,7 +54,8 @@ public class VenueController {
     @GetMapping("/{id}")
     public ResponseEntity<?> getVenueById(@PathVariable UUID id) {
         try {
-
+            VenueDetailResponse venueDetail = venueService.getVenueDetail(id);
+            return ResponseEntity.ok(venueDetail);
         }catch (RuntimeException e) {
             return ResponseEntity.status(404).body(Map.of(
                     "message", "Không tìm thấy sân"

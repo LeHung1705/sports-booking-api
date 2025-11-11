@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -44,4 +45,10 @@ public interface VenueRepository extends JpaRepository<Venue, UUID> {
 
     @EntityGraph(attributePaths = "courts")
     List<Venue> findByIdIn(List<UUID> ids);
+
+
+    @EntityGraph(attributePaths = "courts")
+    Optional<Venue> findWithCourtById(UUID id);
+
+    
 }

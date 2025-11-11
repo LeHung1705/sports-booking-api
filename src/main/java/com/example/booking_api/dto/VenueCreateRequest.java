@@ -3,8 +3,6 @@ package com.example.booking_api.dto;
 
 import jakarta.validation.constraints.*;
 import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
 
 @Data
 public class VenueCreateRequest {
@@ -45,6 +43,10 @@ public class VenueCreateRequest {
     private String description;
 
     @Size(max = 500, message = "URL hình ảnh tối đa 500 ký tự")
+//    @Pattern(
+//            regexp = "^(https?://[\\w\\-./%?=&]+\\.(png|jpg|jpeg|gif|webp))$",
+//            message = "URL hình ảnh không hợp lệ"
+//    )
     private String imageUrl;
 
 }
