@@ -70,4 +70,16 @@ public class AuthController {
             return ResponseEntity.status(500).body(Map.of("message", e.getMessage()));
         }
     }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout() {
+        try {
+            LogoutResponse response = authService.logout();
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                    .body(Map.of("message", "Lỗi khi đăng xuất: " + e.getMessage()));
+        }
+    }
 }

@@ -25,7 +25,8 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
     // ✅ Danh sách các endpoint không cần xác thực
     private static final List<String> PUBLIC_PATHS = Arrays.asList(
             "/api/v1/auth/register",
-            "/api/v1/auth/login"
+            "/api/v1/auth/login",
+            "/api/v1/auth/forgot-password"
     );
 
     @Override
