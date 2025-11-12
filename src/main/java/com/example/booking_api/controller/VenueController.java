@@ -92,5 +92,33 @@ public class VenueController {
             ));
         }
     }
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteVenue(@AuthenticationPrincipal String firebaseUid, @PathVariable UUID id) {
+        try {
+            venueService.deleteVenue(firebaseUid, id);
+            return ResponseEntity.ok(Map.of(
+                    "message", "Deleted"
+            ));
+        }catch (SecurityException e) {
+            return ResponseEntity.status(403).body(Map.of(
+                    "message", "You are not allowed to delete this venue"
+            ));
+
+        } catch (RuntimeException e) {
+            String msg = e.getMessage();
+            if ("Venue not found".equals(msg)) {
+                return ResponseEntity.status(404).body(Map.of(
+                        "message", "Venue not found"
+                ));
+            }
+            if ("User not found".equals(msg)) {
+                return ResponseEntity.status(401).body(Map.of(
+                        "message", "User not found"
+                ));
+            }
+            return ResponseEntity.badRequest().body(Map.of(
+                    "message", msg
+            ));
+        }
     }
 }

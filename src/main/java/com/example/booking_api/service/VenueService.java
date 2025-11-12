@@ -206,6 +206,23 @@ public class VenueService {
                 .isActive(saved.getIsActive())
                 .build();
     }
+    public void deleteVenue(String firebaseUid, UUID venueId) {
+        User user = userRepository.findByFirebaseUid(firebaseUid).orElseThrow(() -> new RuntimeException("User not found"));
+        Venue venue = venueRepository.findById(venueId).orElseThrow(() -> new RuntimeException("Venue not found"));
+
+        String role = user.getRole() == null ? "" : user.getRole().toString();
+
+        boolean isOwner = venue.getOwner() != null
+                && venue.getOwner().getId().equals(user.getId());
+        boolean isAdmin = "ADMIN".equalsIgnoreCase(role);
+
+        if (!isOwner && !isAdmin) {
+            throw new SecurityException("Not allowed");
+        }
+
+        venueRepository.delete(venue);
+
+    }
     private String nullIfBlank(String s) {
         return (s == null || s.isBlank()) ? null : s.trim();
     }

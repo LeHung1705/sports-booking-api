@@ -49,7 +49,7 @@ public class Venue {
     @Column(name = "image_url", length = 500)
     private String imageUrl;
 
-    private Boolean isActive = true;
+    private Boolean isActive = false;
     private OffsetDateTime createdAt = OffsetDateTime.now();
     private OffsetDateTime updatedAt = OffsetDateTime.now();
 
