@@ -1,13 +1,17 @@
 package com.example.booking_api.service;
 
 import com.example.booking_api.dto.*;
+import com.example.booking_api.entity.Review;
 import com.example.booking_api.entity.User;
 import com.example.booking_api.entity.Venue;
+import com.example.booking_api.repository.ReviewRepository;
 import com.example.booking_api.repository.UserRepository;
 import com.example.booking_api.repository.VenueRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -16,8 +20,9 @@ import java.util.UUID;
 public class VenueService {
     private final VenueRepository venueRepository;
     private final UserRepository userRepository;
+    private final ReviewRepository reviewRepository;
 
-    public VenueCreateResponse createVenue(String firebaseUid, VenueCreateRequest req) {
+    public VenueResponse createVenue(String firebaseUid, VenueCreateRequest req) {
         User owner = userRepository.findByFirebaseUid(firebaseUid)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -41,7 +46,7 @@ public class VenueService {
                 .build();
         Venue saved = venueRepository.save(v);
 
-        return VenueCreateResponse.builder()
+        return VenueResponse.builder()
                 .id(saved.getId())
                 .ownerId(saved.getOwner().getId())
                 .name(saved.getName())
@@ -103,7 +108,103 @@ public class VenueService {
     }
 
     public VenueDetailResponse getVenueDetail(UUID id) {
-        return null;
+        Venue venue = venueRepository.findWithCourtsById(id).orElseThrow(() -> new RuntimeException("Không tìm thấy sân"));
+
+        // Get avg venue
+        ReviewRepository.ReviewStats stats = reviewRepository.getVenueStats(id);
+        Double avgRating = null;
+        if (stats != null && stats.getAvg() != null) {
+            avgRating = Math.round(stats.getAvg() * 10.0) / 10.0;
+        }
+
+        // Top 3 review
+        List<Review> top3 = reviewRepository.findTopByVenue(id, PageRequest.of(0, 3));
+
+        return VenueDetailResponse.builder()
+                .id(venue.getId())
+                .name(venue.getName())
+                .address(venue.getAddress())
+                .district(venue.getDistrict())
+                .city(venue.getCity())
+                .phone(venue.getPhone())
+                .description(venue.getDescription())
+                .imageUrl(venue.getImageUrl())
+                .avgRating(avgRating)
+                .courts(venue.getCourts() == null ? List.of()
+                        : venue.getCourts().stream()
+                        .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
+                        .map(c -> VenueDetailResponse.CourtItem.builder()
+                                .id(c.getId())
+                                .name(c.getName())
+                                .sport(c.getSport() == null ? null : c.getSport().name())
+                                .build())
+                        .toList())
+                .reviews(top3.stream()
+                        .map(r -> VenueDetailResponse.ReviewItem.builder()
+                                .id(r.getId())
+                                .rating(r.getRating())
+                                .comment(r.getComment())
+                                .userName(r.getUser().getFullName())
+                                .courtName(r.getCourt().getName())
+                                .createdAt(r.getCreatedAt() == null ? null : r.getCreatedAt().toString())
+                                .build())
+                        .toList())
+                .build();
+    }
+    public VenueResponse updateVenue(String firebaseUid, UUID venueId, VenueUpdateRequest req) {
+        User owner = userRepository.findByFirebaseUid(firebaseUid)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        Venue venue = venueRepository.findById(venueId)
+                .orElseThrow(() -> new RuntimeException("Venue not found"));
+        if (!venue.getOwner().getId().equals(owner.getId())) {
+            throw new SecurityException("Not allowed");
+        }
+
+        if (req.getName() != null) {
+            venue.setName(req.getName());
+        }
+        if (req.getAddress() != null) {
+            venue.setAddress(req.getAddress());
+        }
+        if (req.getDistrict() != null) {
+            venue.setDistrict(req.getDistrict());
+        }
+        if (req.getCity() != null) {
+            venue.setCity(req.getCity());
+        }
+        if (req.getPhone() != null) {
+            venue.setPhone(req.getPhone());
+        }
+        if (req.getDescription() != null) {
+            venue.setDescription(req.getDescription());
+        }
+        if (req.getLat() != null) {
+            venue.setLatitude(req.getLat());
+        }
+        if (req.getLng() != null) {
+            venue.setLongitude(req.getLng());
+        }
+        if (req.getImageUrl() != null) {
+            venue.setImageUrl(req.getImageUrl());
+        }
+
+        venue.setUpdatedAt(OffsetDateTime.now());
+        Venue saved = venueRepository.save(venue);
+
+        return VenueResponse.builder()
+                .id(saved.getId())
+                .ownerId(saved.getOwner().getId())
+                .name(saved.getName())
+                .address(saved.getAddress())
+                .district(saved.getDistrict())
+                .city(saved.getCity())
+                .lat(saved.getLatitude())
+                .lng(saved.getLongitude())
+                .phone(saved.getPhone())
+                .description(saved.getDescription())
+                .imageUrl(saved.getImageUrl())
+                .isActive(saved.getIsActive())
+                .build();
     }
     private String nullIfBlank(String s) {
         return (s == null || s.isBlank()) ? null : s.trim();

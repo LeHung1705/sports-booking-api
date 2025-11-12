@@ -23,7 +23,7 @@ public class VenueController {
     @PostMapping
     public ResponseEntity<?> createVenue(@AuthenticationPrincipal String firebaseUid, @Valid @RequestBody VenueCreateRequest request) {
         try {
-            VenueCreateResponse venue = venueService.createVenue(firebaseUid, request);
+            VenueResponse venue = venueService.createVenue(firebaseUid, request);
             return ResponseEntity.status(201).body(venue);
         }catch (ConstraintViolationException e) {
             return ResponseEntity.badRequest().body(Map.of(
@@ -54,12 +54,43 @@ public class VenueController {
     @GetMapping("/{id}")
     public ResponseEntity<?> getVenueById(@PathVariable UUID id) {
         try {
-            VenueDetailResponse venueDetail = venueService.getVenueDetail(id);
-            return ResponseEntity.ok(venueDetail);
+            VenueDetailResponse body = venueService.getVenueDetail(id);
+            return ResponseEntity.ok(body);
         }catch (RuntimeException e) {
             return ResponseEntity.status(404).body(Map.of(
                     "message", "Không tìm thấy sân"
             ));
         }
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateVenue(@AuthenticationPrincipal String firebaseUid, @PathVariable UUID id, @Valid @RequestBody VenueUpdateRequest request) {
+        try {
+            VenueResponse updated = venueService.updateVenue(firebaseUid, id, request);
+            return ResponseEntity.ok(updated);
+
+        } catch (SecurityException e) {
+            return ResponseEntity.status(403).body(Map.of(
+                    "message", "You are not allowed to update this venue"));
+        } catch (RuntimeException e) {
+
+            String msg = e.getMessage();
+            if ("Venue not found".equals(msg)) {
+                return ResponseEntity.status(404).body(Map.of(
+                        "message", "Venue not found"
+                ));
+            }
+
+            if ("User not found".equals(msg)) {
+                return ResponseEntity.status(401).body(Map.of(
+                        "message", "User not found"
+                ));
+            }
+
+            return ResponseEntity.badRequest().body(Map.of(
+                    "message", msg
+            ));
+        }
+    }
     }
 }

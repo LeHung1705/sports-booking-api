@@ -6,7 +6,7 @@ import java.util.UUID;
 
 @Data
 @Builder
-public class VenueCreateResponse {
+public class VenueResponse {
     private UUID id;
     private UUID ownerId;
     private String name;
