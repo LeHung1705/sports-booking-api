@@ -166,4 +166,10 @@ public class AuthService {
             throw new RuntimeException("Lỗi gửi email: " + e.getMessage());
         }
     }
+
+    public LogoutResponse logout() {
+        System.out.println("User logged out");
+
+        return new LogoutResponse("Logged out successfully");
+    }
 }
