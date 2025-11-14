@@ -1,7 +1,7 @@
 package com.example.booking_api.service;
 
-import com.example.booking_api.dto.UserProfileResponse;
-import com.example.booking_api.dto.UserUpdateRequest;
+import com.example.booking_api.dto.user.UserProfileResponse;
+import com.example.booking_api.dto.user.UserUpdateRequest;
 import com.example.booking_api.entity.User;
 import com.example.booking_api.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
