@@ -2,6 +2,8 @@ package com.example.booking_api.entity;
 
 import com.example.booking_api.entity.enums.BookingStatus;
 import jakarta.persistence.*;
+
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import lombok.Data;
@@ -28,8 +30,12 @@ public class Booking {
 
     private OffsetDateTime startTime;
     private OffsetDateTime endTime;
-    private Double totalAmount;
-    private Double discountAmount = 0.0;
+
+    @Column(precision = 15, scale = 2)
+    private BigDecimal totalAmount;
+
+    @Column(precision = 15, scale = 2)
+    private BigDecimal discountAmount = BigDecimal.ZERO;
 
     @Enumerated(EnumType.STRING)
     private BookingStatus status = BookingStatus.PENDING;
