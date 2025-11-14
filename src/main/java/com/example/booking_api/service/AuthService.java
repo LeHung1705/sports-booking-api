@@ -38,6 +38,7 @@ public class AuthService {
             throw new IllegalStateException("Email đã tồn tại");
         }
 
+        // 1️⃣ Tạo user trong Firebase
         UserRecord.CreateRequest createRequest = new UserRecord.CreateRequest()
                 .setEmail(request.getEmail())
                 .setPassword(request.getPassword())
@@ -47,26 +48,43 @@ public class AuthService {
             createRequest.setPhoneNumber("+84" + request.getPhone());
         }
 
-        UserRecord userRecord = FirebaseAuth.getInstance().createUser(createRequest);
+        UserRecord firebaseUser = FirebaseAuth.getInstance().createUser(createRequest);
 
+        // 2️⃣ Xác định role của user này
+        boolean adminExists = userRepository.existsByRole(com.example.booking_api.entity.enums.UserRole.ADMIN);
+
+        com.example.booking_api.entity.enums.UserRole assignedRole =
+                adminExists ? com.example.booking_api.entity.enums.UserRole.USER
+                        : com.example.booking_api.entity.enums.UserRole.ADMIN;
+
+        // 3️⃣ Tạo user trong MySQL
         User user = User.builder()
                 .email(request.getEmail())
                 .fullName(request.getFull_name())
                 .phone(request.getPhone())
-                .firebaseUid(userRecord.getUid())
+                .firebaseUid(firebaseUser.getUid())
+                .role(assignedRole)               // 🆕 Lưu role vào MySQL
                 .build();
 
         userRepository.save(user);
 
-        String token = FirebaseAuth.getInstance().createCustomToken(userRecord.getUid());
+        // 4️⃣ Cập nhật ROLE vào Firebase Custom Claims
+        FirebaseAuth.getInstance().setCustomUserClaims(
+                firebaseUser.getUid(),
+                Map.of("role", assignedRole.name())
+        );
+
+        // 5️⃣ Trả custom token để FE dùng signinWithCustomToken()
+        String customToken = FirebaseAuth.getInstance().createCustomToken(firebaseUser.getUid());
 
         return new RegisterResponse(
                 user.getId().toString(),
                 user.getEmail(),
                 user.getFullName(),
-                token
+                customToken
         );
     }
+
 
     public LoginResponse login(LoginRequest request) {
         try {
