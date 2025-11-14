@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import java.nio.ByteBuffer;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -64,7 +65,7 @@ public class VenueService {
 
     public List<VenueListResponse> searchVenues(VenueListRequest req) {
         try {
-            List<Object> rawIds = venueRepository.findIds(
+            List<byte[]> rawIds = venueRepository.findIds(
                     nullIfBlank(req.getQ()),
                     nullIfBlank(req.getCity()),
                     nullIfBlank(req.getSport()),
@@ -78,7 +79,12 @@ public class VenueService {
             }
 
             List<UUID> ids = rawIds.stream()
-                    .map(o -> UUID.fromString(o.toString()))
+                    .map(bytes -> {
+                        ByteBuffer bb = ByteBuffer.wrap(bytes);
+                        long high = bb.getLong();
+                        long low = bb.getLong();
+                        return new UUID(high, low);
+                    })
                     .toList();
 
 
