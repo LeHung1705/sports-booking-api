@@ -15,18 +15,36 @@ public class Voucher {
     @GeneratedValue
     private UUID id;
 
-    @Column(unique = true, nullable = false)
+    @Column(nullable = false, length = 64)
     private String code;
 
     @Enumerated(EnumType.STRING)
-    private VoucherType type;
+    @Column(nullable = false, length = 16)
+    private VoucherType type = VoucherType.FIXED;
 
-    private Double value;
-    private Double minOrderAmount;
+    // Giá trị giảm: nếu type = PERCENT -> 0..100 ; nếu type = FIXED -> số tiền
+    @Column(nullable = false)
+    private Double value = 0.0;
+
+    // Đơn tối thiểu để được áp dụng
+    private Double minOrderAmount = 0.0;
+
     private OffsetDateTime validFrom;
     private OffsetDateTime validTo;
+
+    // Giới hạn tổng số lần dùng (toàn hệ thống). null = không giới hạn
+    private Integer usageLimit;
+
+    // Đã dùng bao nhiêu lần (toàn hệ thống)
+    @Column(nullable = false)
+    private Integer usedCount = 0;
+
+    @Column(nullable = false)
     private Boolean active = true;
+
+    @Column(nullable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
     // Getters & Setters
 }
+

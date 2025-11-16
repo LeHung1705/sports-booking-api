@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+import java.math.BigDecimal;
+
 @Data
 public class CourtRequest {
     @NotBlank
@@ -14,6 +16,6 @@ public class CourtRequest {
     private SportType sport;
 
     @NotNull
-    private Double pricePerHour;
+    private BigDecimal pricePerHour;
     private Boolean isActive = true;
 }
