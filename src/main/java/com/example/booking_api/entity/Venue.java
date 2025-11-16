@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.UUID;
 
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 @Entity
 @Table(name = "venues", indexes = @Index(columnList = "city, district"))
@@ -50,7 +52,15 @@ public class Venue {
     private String imageUrl;
 
     private Boolean isActive = false;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    @Builder.Default
     private OffsetDateTime createdAt = OffsetDateTime.now();
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    @Builder.Default
     private OffsetDateTime updatedAt = OffsetDateTime.now();
 
     @OneToMany(mappedBy = "venue", fetch = FetchType.LAZY)

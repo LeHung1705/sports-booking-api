@@ -45,7 +45,7 @@ public class VoucherService {
         if (req.getCode() == null || req.getCode().isBlank()) {
             throw new IllegalArgumentException("Code is required");
         }
-        if (voucherRepository.existsByCode(req.getCode())) {
+        if (voucherRepository.existsByCodeIgnoreCase(req.getCode())) {
             throw new IllegalArgumentException("Code already exists");
         }
         Voucher v = new Voucher();
@@ -66,7 +66,7 @@ public class VoucherService {
                 .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
 
         if (req.getCode() != null && !req.getCode().equals(v.getCode())) {
-            if (voucherRepository.existsByCode(req.getCode())) {
+            if (voucherRepository.existsByCodeIgnoreCase(req.getCode())) {
                 throw new IllegalArgumentException("Code already exists");
             }
             v.setCode(req.getCode());
@@ -96,7 +96,7 @@ public class VoucherService {
     public PreviewResponse preview(PreviewRequest req) {
         BigDecimal orderAmount = req.getOrderAmount() == null ? BigDecimal.valueOf(0.0) : req.getOrderAmount();
 
-        Voucher v = voucherRepository.findByCode(req.getCode()).orElse(null);
+        Voucher v = voucherRepository.findByCodeIgnoreCase(req.getCode()).orElse(null);
         if (v == null) return new PreviewResponse(false, BigDecimal.valueOf(0), "Voucher not found");
         if (Boolean.FALSE.equals(v.getActive())) return new PreviewResponse(false, BigDecimal.valueOf(0), "Voucher inactive");
 
@@ -143,7 +143,7 @@ public class VoucherService {
                 .orElseThrow(() -> new IllegalArgumentException("Booking not found"));
 
         // 2) voucher
-        Voucher v = voucherRepository.findByCode(req.getCode())
+        Voucher v = voucherRepository.findByCodeIgnoreCase(req.getCode())
                 .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
 
         // (tùy chọn) chặn 1 user dùng lại cùng code

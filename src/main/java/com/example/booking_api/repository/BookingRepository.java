@@ -38,4 +38,17 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         WHERE b.id = :id
     """)
     Optional<Booking> findDetailById(@Param("id") UUID id);
+
+    @Query("""
+        SELECT COUNT(b) FROM Booking b
+        WHERE b.court.id = :courtId
+          AND b.status <> com.example.booking_api.entity.enums.BookingStatus.CANCELED
+          AND b.startTime < :endTime
+          AND b.endTime > :startTime
+    """)
+    long countOverlappingBookings(
+            @Param("courtId") UUID courtId,
+            @Param("startTime") OffsetDateTime startTime,
+            @Param("endTime") OffsetDateTime endTime
+    );
 }

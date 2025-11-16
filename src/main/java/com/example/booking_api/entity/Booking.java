@@ -9,10 +9,13 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "bookings", indexes = {
-        @Index(columnList = "court_id, start_time, end_time", unique = true),
-        @Index(columnList = "user_id, start_time")
-})
+@Table(
+        name = "bookings",
+        indexes = {
+                @Index(columnList = "court_id, start_time, end_time, status", unique = true),
+                @Index(columnList = "user_id, start_time")
+        }
+)
 @Data
 public class Booking {
 

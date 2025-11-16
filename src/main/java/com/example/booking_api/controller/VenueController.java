@@ -92,6 +92,7 @@ public class VenueController {
             ));
         }
     }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteVenue(@AuthenticationPrincipal String firebaseUid, @PathVariable UUID id) {
         try {
