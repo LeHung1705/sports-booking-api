@@ -1,7 +1,7 @@
 package com.example.booking_api.controller;
 
 
-import com.example.booking_api.dto.*;
+import com.example.booking_api.dto.venue.*;
 import com.example.booking_api.service.VenueService;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Valid;

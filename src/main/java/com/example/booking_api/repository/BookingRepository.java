@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface BookingRepository extends JpaRepository<Booking, UUID> {
@@ -27,4 +28,14 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
             @Param("from") OffsetDateTime from,
             @Param("to") OffsetDateTime to
     );
+
+
+    @Query("""
+        SELECT b FROM Booking b
+        JOIN FETCH b.court c
+        JOIN FETCH c.venue v
+        LEFT JOIN FETCH b.payment p
+        WHERE b.id = :id
+    """)
+    Optional<Booking> findDetailById(@Param("id") UUID id);
 }

@@ -1,4 +1,3 @@
-<<<<<<< HEAD:src/main/java/com/example/booking_api/dto/user/UserProfileResponse.java
 package com.example.booking_api.dto.user;
 
 import lombok.AllArgsConstructor;
@@ -13,19 +12,3 @@ public class UserProfileResponse {
     private String phone;
     private String role;
 }
-=======
-package com.example.booking_api.dto;
-
-import lombok.AllArgsConstructor;
-import lombok.Data;
-
-@Data
-@AllArgsConstructor
-public class UserProfileResponse {
-    private String id;
-    private String full_name;
-    private String email;
-    private String phone;
-    private String role;
-}
->>>>>>> 5d05c7d (Save work before rebase):src/main/java/com/example/booking_api/dto/UserProfileResponse.java
