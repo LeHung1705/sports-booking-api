@@ -2,6 +2,8 @@ package com.example.booking_api.entity;
 
 import com.example.booking_api.entity.enums.VoucherType;
 import jakarta.persistence.*;
+
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import lombok.Data;
@@ -23,11 +25,11 @@ public class Voucher {
     private VoucherType type = VoucherType.FIXED;
 
     // Giá trị giảm: nếu type = PERCENT -> 0..100 ; nếu type = FIXED -> số tiền
-    @Column(nullable = false)
-    private Double value = 0.0;
+    @Column(precision = 15, scale = 2)
+    private BigDecimal value = BigDecimal.valueOf(0);
 
-    // Đơn tối thiểu để được áp dụng
-    private Double minOrderAmount = 0.0;
+    @Column(precision = 15, scale = 2)
+    private BigDecimal minOrderAmount = BigDecimal.valueOf(0);
 
     private OffsetDateTime validFrom;
     private OffsetDateTime validTo;
