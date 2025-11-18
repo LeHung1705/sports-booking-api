@@ -1,5 +1,5 @@
 package com.example.booking_api.config;
-
+import com.example.booking_api.security.UserRoleFilter;
 import com.example.booking_api.security.FirebaseAuthFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -17,6 +17,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final FirebaseAuthFilter firebaseAuthFilter;
+    private final UserRoleFilter userRoleFilter;   // 👈 thêm dòng này
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -24,23 +25,16 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> {})
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                // 🔐 Bật Basic Auth để test bằng Postman
                 .httpBasic(Customizer.withDefaults())
-
                 .authorizeHttpRequests(auth -> auth
-                        // Cho phép các endpoint public
                         .requestMatchers("/api/v1/auth/**", "/actuator/health", "/error").permitAll()
-
-                        // Admin phải có ROLE_ADMIN
-                        .requestMatchers("/v1/admin/**").hasRole("ADMIN")
-
-                        // còn lại chỉ cần đã xác thực
+                        .requestMatchers("/v1/admin/**").hasRole("ADMIN")   // giữ nguyên
                         .anyRequest().authenticated()
                 )
-
-                // 🧩 Đặt Firebase filter CHẠY SAU BasicAuth; nếu không có Bearer thì filter phải bỏ qua.
-                .addFilterAfter(firebaseAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                // Firebase xác thực token trước
+                .addFilterAfter(firebaseAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                // Sau đó map UID -> role
+                .addFilterAfter(userRoleFilter, FirebaseAuthFilter.class);
 
         return http.build();
     }
