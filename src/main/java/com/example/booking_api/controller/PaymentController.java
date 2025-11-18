@@ -51,10 +51,10 @@ public class PaymentController {
         }
     }
 
-    @GetMapping("/vnpay/return")
-    public ResponseEntity<?> vnpayReturn(@RequestParam Map<String, String> vnpParams) {
+    @GetMapping("/vnpay/ipn")
+    public ResponseEntity<?> vnpayIpn(@RequestParam Map<String, String> vnpParams) {
         try {
-            VnPayReturnResponse res = paymentService.handleVnPayReturn(vnpParams);
+            VnPayReturnResponse res = paymentService.handleVnPayIpn(vnpParams);
 
             return ResponseEntity.ok(res);
 

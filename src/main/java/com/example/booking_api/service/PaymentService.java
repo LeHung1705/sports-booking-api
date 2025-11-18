@@ -128,7 +128,7 @@ public class PaymentService {
 
 
     @Transactional
-    public VnPayReturnResponse handleVnPayReturn(Map<String, String> allParams) {
+    public VnPayReturnResponse handleVnPayIpn(Map<String, String> allParams) {
         String vnpSecureHash = allParams.get("vnp_SecureHash");
         String vnpTxnRef = allParams.get("vnp_TxnRef");
         String vnpResponseCode = allParams.get("vnp_ResponseCode");       // 00, 24, 91, 97, 13, ...

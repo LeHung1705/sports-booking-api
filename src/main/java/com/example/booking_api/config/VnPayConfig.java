@@ -22,7 +22,7 @@ public class VnPayConfig {
 
     public static final String VNP_PAY_URL = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
 
-    public static final String VNP_RETURN_URL = "http://localhost:8080/api/v1/payments/vnpay/return";
+    public static final String VNP_RETURN_URL = "http://localhost:8080/api/v1/payments/vnpay/return"; // Thay đổi thành URL của client (http://localhost:8081/vnpay/callback)
 
     public static final String VNP_IPN_URL = "http://localhost:8080/api/v1/payments/vnpay/ipn";
 
