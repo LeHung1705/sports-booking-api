@@ -2,6 +2,8 @@ package com.example.booking_api.entity;
 
 import com.example.booking_api.entity.enums.PaymentStatus;
 import jakarta.persistence.*;
+
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import lombok.Data;
@@ -24,12 +26,16 @@ public class Payment {
     @Enumerated(EnumType.STRING)
     private PaymentStatus status = PaymentStatus.INIT;
 
-    private Double amount;
+    @Column(precision = 15, scale = 2)
+    private BigDecimal amount;
     private String providerTxnRef;
     private OffsetDateTime paidAt;
 
     @Column(name = "return_payload", columnDefinition = "json")
     private String returnPayload;
+
+    @Column(name = "vnp_txn_ref", length = 64, unique = true)
+    private String vnpTxnRef;
 
     private OffsetDateTime createdAt = OffsetDateTime.now();
     private OffsetDateTime updatedAt = OffsetDateTime.now();

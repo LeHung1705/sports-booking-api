@@ -13,6 +13,8 @@ import com.example.booking_api.repository.VoucherRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -43,14 +45,14 @@ public class VoucherService {
         if (req.getCode() == null || req.getCode().isBlank()) {
             throw new IllegalArgumentException("Code is required");
         }
-        if (voucherRepository.existsByCode(req.getCode())) {
+        if (voucherRepository.existsByCodeIgnoreCase(req.getCode())) {
             throw new IllegalArgumentException("Code already exists");
         }
         Voucher v = new Voucher();
         v.setCode(req.getCode());
         v.setType(Optional.ofNullable(req.getType()).orElse(VoucherType.FIXED));
-        v.setValue(Optional.ofNullable(req.getValue()).orElse(0.0));
-        v.setMinOrderAmount(Optional.ofNullable(req.getMinOrderAmount()).orElse(0.0));
+        v.setValue(Optional.ofNullable(req.getValue()).orElse(BigDecimal.valueOf(0.0)));
+        v.setMinOrderAmount(Optional.ofNullable(req.getMinOrderAmount()).orElse(BigDecimal.valueOf(0.0)));
         v.setValidFrom(req.getValidFrom());
         v.setValidTo(req.getValidTo());
         v.setUsageLimit(req.getUsageLimit());
@@ -64,7 +66,7 @@ public class VoucherService {
                 .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
 
         if (req.getCode() != null && !req.getCode().equals(v.getCode())) {
-            if (voucherRepository.existsByCode(req.getCode())) {
+            if (voucherRepository.existsByCodeIgnoreCase(req.getCode())) {
                 throw new IllegalArgumentException("Code already exists");
             }
             v.setCode(req.getCode());
@@ -92,34 +94,42 @@ public class VoucherService {
     /* ===== USER: PREVIEW & REDEEM ===== */
 
     public PreviewResponse preview(PreviewRequest req) {
-        double orderAmount = req.getOrderAmount() == null ? 0.0 : req.getOrderAmount();
+        BigDecimal orderAmount = req.getOrderAmount() == null ? BigDecimal.valueOf(0.0) : req.getOrderAmount();
 
-        Voucher v = voucherRepository.findByCode(req.getCode()).orElse(null);
-        if (v == null) return new PreviewResponse(false, 0, "Voucher not found");
-        if (Boolean.FALSE.equals(v.getActive())) return new PreviewResponse(false, 0, "Voucher inactive");
+        Voucher v = voucherRepository.findByCodeIgnoreCase(req.getCode()).orElse(null);
+        if (v == null) return new PreviewResponse(false, BigDecimal.valueOf(0), "Voucher not found");
+        if (Boolean.FALSE.equals(v.getActive())) return new PreviewResponse(false, BigDecimal.valueOf(0), "Voucher inactive");
 
         OffsetDateTime now = OffsetDateTime.now();
         if (v.getValidFrom() != null && now.isBefore(v.getValidFrom())) {
-            return new PreviewResponse(false, 0, "Voucher not started");
+            return new PreviewResponse(false, BigDecimal.valueOf(0), "Voucher not started");
         }
         if (v.getValidTo() != null && now.isAfter(v.getValidTo())) {
-            return new PreviewResponse(false, 0, "Voucher expired");
+            return new PreviewResponse(false, BigDecimal.valueOf(0), "Voucher expired");
         }
-        if (v.getMinOrderAmount() != null && orderAmount < v.getMinOrderAmount()) {
-            return new PreviewResponse(false, 0, "Order below minimum");
+        if (v.getMinOrderAmount() != null && orderAmount.compareTo(v.getMinOrderAmount()) < 0) {
+            return new PreviewResponse(false, BigDecimal.ZERO, "Order below minimum");
         }
         if (v.getUsageLimit() != null && v.getUsedCount() >= v.getUsageLimit()) {
-            return new PreviewResponse(false, 0, "Usage limit reached");
+            return new PreviewResponse(false, BigDecimal.valueOf(0), "Usage limit reached");
         }
 
-        double discount;
+        BigDecimal discount;
+
         if (v.getType() == VoucherType.PERCENT) {
-            discount = orderAmount * (v.getValue() / 100.0);
+            discount = orderAmount
+                    .multiply(v.getValue())
+                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
         } else {
             discount = v.getValue();
         }
-        if (discount < 0) discount = 0;
-        if (discount > orderAmount) discount = orderAmount;
+
+        if (discount.compareTo(BigDecimal.ZERO) < 0) {
+            discount = BigDecimal.ZERO;
+        }
+        if (discount.compareTo(orderAmount) > 0) {
+            discount = orderAmount;
+        }
 
         return new PreviewResponse(true, discount, "OK");
     }
@@ -133,7 +143,7 @@ public class VoucherService {
                 .orElseThrow(() -> new IllegalArgumentException("Booking not found"));
 
         // 2) voucher
-        Voucher v = voucherRepository.findByCode(req.getCode())
+        Voucher v = voucherRepository.findByCodeIgnoreCase(req.getCode())
                 .orElseThrow(() -> new IllegalArgumentException("Voucher not found"));
 
         // (tùy chọn) chặn 1 user dùng lại cùng code
@@ -144,7 +154,7 @@ public class VoucherService {
         r.setVoucher(v);
         r.setUser(user);
         r.setBooking(booking);
-        r.setDiscountValue(req.getDiscountValue() == null ? 0.0 : req.getDiscountValue());
+        r.setDiscountValue(req.getDiscountValue() == null ? BigDecimal.valueOf(0.0) : req.getDiscountValue());
         redemptionRepository.save(r);
 
         // 4) tăng usedCount

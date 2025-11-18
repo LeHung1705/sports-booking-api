@@ -1,26 +1,20 @@
 package com.example.booking_api.dto.voucher;
 
+import lombok.Data;
+
+import java.math.BigDecimal;
 import java.util.UUID;
 
+@Data
 public class RedeemResponse {
     private UUID redemptionId;
     private String code;
-    private double discountValue;
+    private BigDecimal discountValue;
 
-    public RedeemResponse() {}
 
-    public RedeemResponse(UUID redemptionId, String code, double discountValue) {
+    public RedeemResponse(UUID redemptionId, String code, BigDecimal discountValue) {
         this.redemptionId = redemptionId;
         this.code = code;
         this.discountValue = discountValue;
     }
-
-    public UUID getRedemptionId() { return redemptionId; }
-    public void setRedemptionId(UUID redemptionId) { this.redemptionId = redemptionId; }
-
-    public String getCode() { return code; }
-    public void setCode(String code) { this.code = code; }
-
-    public double getDiscountValue() { return discountValue; }
-    public void setDiscountValue(double discountValue) { this.discountValue = discountValue; }
 }

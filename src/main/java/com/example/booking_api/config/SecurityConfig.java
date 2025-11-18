@@ -1,5 +1,5 @@
 package com.example.booking_api.config;
-import com.example.booking_api.security.UserRoleFilter;
+
 import com.example.booking_api.security.FirebaseAuthFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -17,7 +17,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final FirebaseAuthFilter firebaseAuthFilter;
-    private final UserRoleFilter userRoleFilter;   // 👈 thêm dòng này
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -25,16 +24,20 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> {})
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // Bật Basic Auth để bạn có thể test nhanh (không ảnh hưởng Bearer)
                 .httpBasic(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> auth
+                        // Public endpoints
                         .requestMatchers("/api/v1/auth/**", "/actuator/health", "/error").permitAll()
-                        .requestMatchers("/v1/admin/**").hasRole("ADMIN")   // giữ nguyên
+
+                        // Khu vực admin (nếu cần test admin sau thì phải gán ROLE_ADMIN từ filter/claims)
+                        .requestMatchers("/v1/admin/**").hasRole("ADMIN")
+
+                        // Còn lại yêu cầu đã đăng nhập (Bearer Firebase)
                         .anyRequest().authenticated()
                 )
-                // Firebase xác thực token trước
-                .addFilterAfter(firebaseAuthFilter, UsernamePasswordAuthenticationFilter.class)
-                // Sau đó map UID -> role
-                .addFilterAfter(userRoleFilter, FirebaseAuthFilter.class);
+                // Xác thực Firebase token sau UsernamePasswordAuthenticationFilter
+                .addFilterAfter(firebaseAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

@@ -2,6 +2,8 @@ package com.example.booking_api.entity;
 
 import com.example.booking_api.entity.enums.SportType;
 import jakarta.persistence.*;
+
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import lombok.Data;
@@ -23,8 +25,8 @@ public class Court {
 
     @Enumerated(EnumType.STRING)
     private SportType sport;
-
-    private Double pricePerHour;
+    @Column(precision = 15, scale = 2)
+    private BigDecimal pricePerHour;
 
     private Boolean isActive = true;
 

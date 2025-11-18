@@ -1,17 +1,21 @@
 package com.example.booking_api.service;
 
-import com.example.booking_api.dto.LoginRequest;
-import com.example.booking_api.dto.LoginResponse;
-import com.example.booking_api.dto.RegisterRequest;
-import com.example.booking_api.dto.RegisterResponse;
+import com.example.booking_api.dto.*;
 import com.example.booking_api.entity.User;
 import com.example.booking_api.repository.UserRepository;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.UserRecord;
 import lombok.RequiredArgsConstructor;
+import lombok.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -22,19 +26,19 @@ public class AuthService {
 
     private final UserRepository userRepository;
 
+    private static final String FIREBASE_API_KEY = "AIzaSyCms5-dO8nbnmqBaK9GoplPTXUbMHnsKLc";
+
     public RegisterResponse register(RegisterRequest request) throws Exception {
 
-        // 1️⃣ Kiểm tra input
         if (request.getEmail() == null || request.getPassword() == null || request.getFull_name() == null) {
             throw new IllegalArgumentException("Thiếu dữ liệu bắt buộc");
         }
 
-        // 2️⃣ Kiểm tra email tồn tại
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new IllegalStateException("Email đã tồn tại");
         }
 
-        // 3️⃣ Tạo user trong Firebase
+        // 1️⃣ Tạo user trong Firebase
         UserRecord.CreateRequest createRequest = new UserRecord.CreateRequest()
                 .setEmail(request.getEmail())
                 .setPassword(request.getPassword())
@@ -44,28 +48,43 @@ public class AuthService {
             createRequest.setPhoneNumber("+84" + request.getPhone());
         }
 
-        UserRecord userRecord = FirebaseAuth.getInstance().createUser(createRequest);
+        UserRecord firebaseUser = FirebaseAuth.getInstance().createUser(createRequest);
 
-        // 4️⃣ Lưu vào DB
+        // 2️⃣ Xác định role của user này
+        boolean adminExists = userRepository.existsByRole(com.example.booking_api.entity.enums.UserRole.ADMIN);
+
+        com.example.booking_api.entity.enums.UserRole assignedRole =
+                adminExists ? com.example.booking_api.entity.enums.UserRole.USER
+                        : com.example.booking_api.entity.enums.UserRole.ADMIN;
+
+        // 3️⃣ Tạo user trong MySQL
         User user = User.builder()
                 .email(request.getEmail())
                 .fullName(request.getFull_name())
                 .phone(request.getPhone())
-                .firebaseUid(userRecord.getUid())
+                .firebaseUid(firebaseUser.getUid())
+                .role(assignedRole)               // 🆕 Lưu role vào MySQL
                 .build();
 
         userRepository.save(user);
 
-        // 5️⃣ Tạo custom token
-        String token = FirebaseAuth.getInstance().createCustomToken(userRecord.getUid());
+        // 4️⃣ Cập nhật ROLE vào Firebase Custom Claims
+        FirebaseAuth.getInstance().setCustomUserClaims(
+                firebaseUser.getUid(),
+                Map.of("role", assignedRole.name())
+        );
+
+        // 5️⃣ Trả custom token để FE dùng signinWithCustomToken()
+        String customToken = FirebaseAuth.getInstance().createCustomToken(firebaseUser.getUid());
 
         return new RegisterResponse(
                 user.getId().toString(),
                 user.getEmail(),
                 user.getFullName(),
-                token
+                customToken
         );
     }
+
 
     public LoginResponse login(LoginRequest request) {
         try {
@@ -102,5 +121,73 @@ public class AuthService {
         }
     }
 
+    public ForgotPasswordResponse forgotPassword(ForgotPasswordRequest request) {
+        try {
+            // 1️⃣ Validate input
+            if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
+                throw new IllegalArgumentException("Email không được để trống");
+            }
 
+            String email = request.getEmail().trim();
+
+            // 2️⃣ Kiểm tra email có tồn tại trong database không
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("Email chưa được đăng ký"));
+
+            // 3️⃣ Gọi Firebase REST API để GỬI EMAIL
+            String firebaseUrl =
+                    "https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=" + FIREBASE_API_KEY;
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("requestType", "PASSWORD_RESET");  // ✅ Loại request
+            body.put("email", email);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+
+            RestTemplate restTemplate = new RestTemplate();
+
+            // ✅ Firebase sẽ TỰ ĐỘNG GỬI EMAIL
+            ResponseEntity<Map> response = restTemplate.exchange(
+                    firebaseUrl,
+                    HttpMethod.POST,
+                    requestEntity,
+                    Map.class
+            );
+
+            if (response.getStatusCode() == HttpStatus.OK) {
+                System.out.println("✅ Password reset email sent to: " + email);
+                return new ForgotPasswordResponse("Email đặt lại mật khẩu đã được gửi thành công");
+            } else {
+                throw new RuntimeException("Firebase trả về lỗi: " + response.getStatusCode());
+            }
+
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(e.getMessage());
+
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("chưa được đăng ký")) {
+                throw e;
+            }
+            throw new RuntimeException("Lỗi khi gửi email reset password: " + e.getMessage());
+
+        } catch (Exception e) {
+            System.err.println("❌ Error: " + e.getMessage());
+
+            // Xử lý lỗi Firebase cụ thể
+            if (e.getMessage().contains("EMAIL_NOT_FOUND")) {
+                throw new RuntimeException("Email chưa được đăng ký");
+            }
+
+            throw new RuntimeException("Lỗi gửi email: " + e.getMessage());
+        }
+    }
+
+    public LogoutResponse logout() {
+        System.out.println("User logged out");
+
+        return new LogoutResponse("Logged out successfully");
+    }
 }
