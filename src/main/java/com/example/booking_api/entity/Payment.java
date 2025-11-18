@@ -34,6 +34,9 @@ public class Payment {
     @Column(name = "return_payload", columnDefinition = "json")
     private String returnPayload;
 
+    @Column(name = "vnp_txn_ref", length = 64, unique = true)
+    private String vnpTxnRef;
+
     private OffsetDateTime createdAt = OffsetDateTime.now();
     private OffsetDateTime updatedAt = OffsetDateTime.now();
 

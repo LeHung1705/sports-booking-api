@@ -11,7 +11,7 @@ import java.util.UUID;
 
 @Data
 public class BookingCreateRequest {
-
+    @JsonProperty("court_id")
     @NotNull(message = "court_id is required")
     private UUID courtId;
 

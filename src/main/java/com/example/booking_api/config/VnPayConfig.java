@@ -1,6 +1,7 @@
 package com.example.booking_api.config;
 
 import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -16,13 +17,19 @@ import javax.crypto.spec.SecretKeySpec;
 
 import jakarta.servlet.http.HttpServletRequest;
 
-public class VnPayConfig {
-    public static String vnp_PayUrl = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
-    public static String vnp_ReturnUrl = "http://localhost:8080/api/v1/payments/vnpay/return";
 
-    public static String vnp_TmnCode = "JGV9MSIF";
-    public static String secretKey = "E9QLQ1W7KCLQKQLE5522R5JNRR7WIV8I";
-    public static String vnp_ApiUrl = "https://sandbox.vnpayment.vn/merchant_webapi/api/transaction";
+public class VnPayConfig {
+
+    public static final String VNP_PAY_URL = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
+
+    public static final String VNP_RETURN_URL = "http://localhost:8080/api/v1/payments/vnpay/return";
+
+    public static final String VNP_IPN_URL = "http://localhost:8080/api/v1/payments/vnpay/ipn";
+
+    public static final String VNP_TMN_CODE = "JGV9MSIF";
+    public static final String VNP_HASH_SECRET = "E9QLQ1W7KCLQKQLE5522R5JNRR7WIV8I";
+
+    public static final String VNP_API_URL = "https://sandbox.vnpayment.vn/merchant_webapi/api/transaction";
 
     public static String md5(String message) {
         String digest = null;
@@ -78,7 +85,7 @@ public class VnPayConfig {
                 sb.append("&");
             }
         }
-        return hmacSHA512(secretKey, sb.toString());
+        return hmacSHA512(VNP_HASH_SECRET, sb.toString());
     }
 
     public static String hmacSHA512(final String key, final String data) {
@@ -125,5 +132,36 @@ public class VnPayConfig {
             sb.append(chars.charAt(rnd.nextInt(chars.length())));
         }
         return sb.toString();
+    }
+
+    public static String buildSecureHash(Map<String, String> vnpParams) {
+        List<String> fieldNames = new ArrayList<>(vnpParams.keySet());
+        Collections.sort(fieldNames);
+
+        StringBuilder query = new StringBuilder();
+        StringBuilder hashData = new StringBuilder();
+
+        for (Iterator<String> it = fieldNames.iterator(); it.hasNext();) {
+            String key = it.next();
+            String value = vnpParams.get(key);
+            if (value != null && value.length() > 0) {
+                hashData.append(key).append("=")
+                        .append(URLEncoder.encode(value, StandardCharsets.US_ASCII));
+                query.append(URLEncoder.encode(key, StandardCharsets.US_ASCII))
+                        .append("=")
+                        .append(URLEncoder.encode(value, StandardCharsets.US_ASCII));
+                if (it.hasNext()) {
+                    hashData.append("&");
+                    query.append("&");
+                }
+            }
+        }
+
+        String secureHash = VnPayConfig.hmacSHA512(VnPayConfig.VNP_HASH_SECRET, hashData.toString());
+        query.append("&vnp_SecureHash=").append(secureHash);
+
+        String paymentUrl = VnPayConfig.VNP_PAY_URL + "?" + query;
+
+        return paymentUrl;
     }
 }
