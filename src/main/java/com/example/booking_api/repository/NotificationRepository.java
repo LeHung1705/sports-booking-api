@@ -31,4 +31,15 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
             """, nativeQuery = true)
     List<Notification> findByFirebaseUidAndRead(@Param("firebaseUid") String firebaseUid,
                                                 @Param("read") boolean read);
+
+    // Dùng cho PUT /{id}/read
+    @Query(value = """
+            SELECT n.* 
+            FROM notifications n
+                     JOIN users u ON n.user_id = u.id
+            WHERE n.id = :id
+              AND u.firebase_uid = :firebaseUid
+            """, nativeQuery = true)
+    Notification findOneByIdAndFirebaseUid(@Param("id") UUID id,
+                                           @Param("firebaseUid") String firebaseUid);
 }
