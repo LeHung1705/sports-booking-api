@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface BookingRepository extends JpaRepository<Booking, UUID> {
@@ -26,5 +27,28 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
             @Param("status") BookingStatus status,
             @Param("from") OffsetDateTime from,
             @Param("to") OffsetDateTime to
+    );
+
+
+    @Query("""
+        SELECT b FROM Booking b
+        JOIN FETCH b.court c
+        JOIN FETCH c.venue v
+        LEFT JOIN FETCH b.payment p
+        WHERE b.id = :id
+    """)
+    Optional<Booking> findDetailById(@Param("id") UUID id);
+
+    @Query("""
+        SELECT COUNT(b) FROM Booking b
+        WHERE b.court.id = :courtId
+          AND b.status <> com.example.booking_api.entity.enums.BookingStatus.CANCELED
+          AND b.startTime < :endTime
+          AND b.endTime > :startTime
+    """)
+    long countOverlappingBookings(
+            @Param("courtId") UUID courtId,
+            @Param("startTime") OffsetDateTime startTime,
+            @Param("endTime") OffsetDateTime endTime
     );
 }

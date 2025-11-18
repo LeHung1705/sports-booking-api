@@ -1,4 +1,4 @@
-package com.example.booking_api.dto;
+package com.example.booking_api.dto.venue;
 
 import jakarta.validation.constraints.*;
 import lombok.Data;

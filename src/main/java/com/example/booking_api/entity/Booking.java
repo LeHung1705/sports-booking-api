@@ -2,17 +2,20 @@ package com.example.booking_api.entity;
 
 import com.example.booking_api.entity.enums.BookingStatus;
 import jakarta.persistence.*;
+import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
-import lombok.Data;
 
 @Entity
-@Table(name = "bookings", indexes = {
-        @Index(columnList = "court_id, start_time, end_time", unique = true),
-        @Index(columnList = "user_id, start_time")
-})
+@Table(
+        name = "bookings",
+        indexes = {
+                @Index(columnList = "court_id, start_time, end_time, status", unique = true),
+                @Index(columnList = "user_id, start_time")
+        }
+)
 @Data
 public class Booking {
 
@@ -42,8 +45,9 @@ public class Booking {
 
     private String cancelReason;
 
+    @OneToOne(mappedBy = "booking", fetch = FetchType.LAZY)
+    private Payment payment;
+
     private OffsetDateTime createdAt = OffsetDateTime.now();
     private OffsetDateTime updatedAt = OffsetDateTime.now();
-
-    // Getters & Setters
 }

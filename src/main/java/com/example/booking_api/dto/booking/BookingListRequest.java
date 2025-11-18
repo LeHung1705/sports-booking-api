@@ -1,4 +1,4 @@
-package com.example.booking_api.dto;
+package com.example.booking_api.dto.booking;
 
 import com.example.booking_api.entity.enums.BookingStatus;
 import lombok.Data;

@@ -1,6 +1,6 @@
 package com.example.booking_api.service;
 
-import com.example.booking_api.dto.*;
+import com.example.booking_api.dto.venue.*;
 import com.example.booking_api.entity.Review;
 import com.example.booking_api.entity.User;
 import com.example.booking_api.entity.Venue;
