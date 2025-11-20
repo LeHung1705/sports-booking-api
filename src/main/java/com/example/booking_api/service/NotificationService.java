@@ -6,9 +6,11 @@ import com.example.booking_api.entity.enums.NotificationType;
 import com.example.booking_api.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -23,7 +25,7 @@ public class NotificationService {
         if (read == null) {
             notifications = notificationRepository.findByFirebaseUid(firebaseUid);
         } else {
-            notifications = notificationRepository.findByFirebaseUidAndRead(firebaseUid, read.booleanValue());
+            notifications = notificationRepository.findByFirebaseUidAndRead(firebaseUid, read);
         }
 
         List<NotificationResponse> result = new ArrayList<>();
@@ -33,17 +35,37 @@ public class NotificationService {
         return result;
     }
 
-    // Nếu sau này tạo thông báo từ Booking/Payment thì cũng nên dùng firebaseUid
+    // Đánh dấu 1 thông báo là đã đọc
+    @Transactional
+    public NotificationResponse markAsRead(String firebaseUid, UUID notificationId) {
+        Notification notification =
+                notificationRepository.findOneByIdAndFirebaseUid(notificationId, firebaseUid);
+
+        if (notification == null) {
+            throw new IllegalArgumentException("Notification not found");
+        }
+
+        if (!notification.isRead()) {
+            notification.setRead(true);
+            notificationRepository.save(notification);
+        }
+
+        return NotificationResponse.fromEntity(notification);
+    }
+
+    // Sau này gọi từ Booking/Payment để tạo thông báo mới
+    // Sau này gọi từ Booking/Payment để tạo thông báo mới
     public Notification createNotification(
             String firebaseUid,
             NotificationType type,
             String title,
             String body
     ) {
-        // Lúc này bạn có thể:
-        // 1. Tìm user theo firebase_uid (UserRepository.findByFirebaseUid)
-        // 2. Gán vào notification trước khi save
-        // (phần này có thể làm sau, giờ chỉ cần load list là được)
+        // TODO:
+        // 1. Tìm User theo firebaseUid (UserRepository.findByFirebaseUid(firebaseUid))
+        // 2. notification.setUserId(user.getId()); // UUID của user
+        // 3. Lưu notification.
+        // Hiện tại nhóm chưa dùng tới nên return null để tránh ghi sai user_id.
         return null;
     }
 }
