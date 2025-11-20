@@ -1,4 +1,4 @@
-package com.example.booking_api.dto;
+package com.example.booking_api.dto.booking;
 
 import lombok.Builder;
 import lombok.Data;

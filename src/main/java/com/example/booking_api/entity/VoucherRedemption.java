@@ -1,6 +1,8 @@
 package com.example.booking_api.entity;
 
 import jakarta.persistence.*;
+
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import lombok.Data;
@@ -28,7 +30,8 @@ public class VoucherRedemption {
     @JoinColumn(name = "booking_id", nullable = false)
     private Booking booking;
 
-    private Double discountValue;
+    @Column(precision = 15, scale = 2)
+    private BigDecimal discountValue;
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
     // Getters & Setters
