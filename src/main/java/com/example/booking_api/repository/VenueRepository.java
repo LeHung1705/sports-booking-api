@@ -34,7 +34,7 @@ public interface VenueRepository extends JpaRepository<Venue, UUID> {
           )
         """,
             nativeQuery = true)
-    List<Object> findIds(
+    List<byte[]> findIds(
             @Param("q") String q,
             @Param("city") String city,
             @Param("sport") String sport,
