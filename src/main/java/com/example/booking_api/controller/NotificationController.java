@@ -1,7 +1,8 @@
 package com.example.booking_api.controller;
 
-
 import com.example.booking_api.dto.NotificationResponse;
+import com.example.booking_api.dto.notification.PushTestRequest;
+import com.example.booking_api.entity.enums.NotificationType;
 import com.example.booking_api.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -46,5 +47,23 @@ public class NotificationController {
                 notificationService.markAsRead(firebaseUid, id);
 
         return ResponseEntity.ok(response);
+    }
+
+    // POST /api/v1/notifications/test  -> tạo Notification + đẩy FCM để test nhanh
+    @PostMapping("/test")
+    public ResponseEntity<NotificationResponse> pushTest(@RequestBody PushTestRequest req) {
+        String currentUid = getCurrentFirebaseUid();
+        String targetUid = (req.getTargetFirebaseUid() == null || req.getTargetFirebaseUid().isBlank())
+                ? currentUid
+                : req.getTargetFirebaseUid();
+
+        NotificationType type = (req.getType() == null) ? NotificationType.SYSTEM : req.getType();
+        String title = (req.getTitle() == null || req.getTitle().isBlank()) ? "Test" : req.getTitle();
+        String body  = (req.getBody()  == null || req.getBody().isBlank())  ? "FCM test message" : req.getBody();
+
+        NotificationResponse res = notificationService.createNotificationAndReturnDto(
+                targetUid, type, title, body
+        );
+        return ResponseEntity.ok(res);
     }
 }

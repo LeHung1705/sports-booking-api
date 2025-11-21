@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity; // ✅ import đúng
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -13,6 +14,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity(prePostEnabled = true) // ✅ bật @PreAuthorize / @PostAuthorize
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -24,19 +26,13 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> {})
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // Bật Basic Auth để bạn có thể test nhanh (không ảnh hưởng Bearer)
                 .httpBasic(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> auth
-                        // Public endpoints
                         .requestMatchers("/api/v1/auth/**", "/actuator/health", "/error").permitAll()
-
-                        // Khu vực admin (nếu cần test admin sau thì phải gán ROLE_ADMIN từ filter/claims)
-                        .requestMatchers("/v1/admin/**").hasRole("ADMIN")
-
-                        // Còn lại yêu cầu đã đăng nhập (Bearer Firebase)
+                        .requestMatchers("/v1/owner/**").hasRole("OWNER")  // ✅ chỉ OWNER
+                        .requestMatchers("/v1/admin/**").hasRole("ADMIN")  // ✅ chỉ ADMIN
                         .anyRequest().authenticated()
                 )
-                // Xác thực Firebase token sau UsernamePasswordAuthenticationFilter
                 .addFilterAfter(firebaseAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
