@@ -30,6 +30,9 @@ public class Court {
 
     private Boolean isActive = true;
 
+    @Column(name = "image_url", length = 500)
+    private String imageUrl;
+
     private OffsetDateTime createdAt = OffsetDateTime.now();
     private OffsetDateTime updatedAt = OffsetDateTime.now();
 

@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.util.List;
 import java.util.UUID;
+import java.math.BigDecimal;
 
 @Data
 @Builder
@@ -17,10 +18,11 @@ public class VenueDetailResponse {
     private String phone;
     private String description;
     private String imageUrl;
+
     private Double avgRating;
+    private Long reviewCount;
 
     private List<CourtItem> courts;
-    private List<ReviewItem> reviews;
 
     @Data
     @Builder
@@ -28,16 +30,7 @@ public class VenueDetailResponse {
         private UUID id;
         private String name;
         private String sport;
-    }
-
-    @Data
-    @Builder
-    public static class ReviewItem {
-        private UUID id;
-        private Short rating;
-        private String comment;
-        private String userName;
-        private String courtName;
-        private String createdAt;
+        private String imageUrl;
+        private BigDecimal pricePerHour;
     }
 }

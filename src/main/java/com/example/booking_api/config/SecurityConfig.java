@@ -28,13 +28,14 @@ public class SecurityConfig {
                 .httpBasic(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints
-                        .requestMatchers("/api/v1/auth/**", "/actuator/health", "/error").permitAll()
+                        //.requestMatchers("/api/v1/auth/**", "/actuator/health", "/error").permitAll()
 
                         // Khu vực admin (nếu cần test admin sau thì phải gán ROLE_ADMIN từ filter/claims)
-                        .requestMatchers("/v1/admin/**").hasRole("ADMIN")
+                        //.requestMatchers("/v1/admin/**").hasRole("ADMIN")
 
                         // Còn lại yêu cầu đã đăng nhập (Bearer Firebase)
-                        .anyRequest().authenticated()
+                        //anyRequest().authenticated()
+                        .anyRequest().permitAll()
                 )
                 // Xác thực Firebase token sau UsernamePasswordAuthenticationFilter
                 .addFilterAfter(firebaseAuthFilter, UsernamePasswordAuthenticationFilter.class);
