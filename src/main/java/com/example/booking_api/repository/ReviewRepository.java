@@ -59,4 +59,5 @@ public interface ReviewRepository extends JpaRepository<Review, UUID> {
             ORDER BY r.createdAt DESC
             """)
     List<Review> findTopByCourt(@Param("courtId") UUID courtId, Pageable pageable);
+    Page<Review> findByCourtId(UUID courtId, Pageable pageable);
 }
