@@ -36,7 +36,7 @@ public class CourtController {
         return ResponseEntity.ok(courtService.getCourts(venueId));
     }
 
-    @PreAuthorize("hasAnyRole('USER', 'OWNER')")
+    //@PreAuthorize("hasAnyRole('USER', 'OWNER')")
     @GetMapping("/{courtId}")
     public ResponseEntity<CourtResponse> getCourt(
             @PathVariable UUID venueId,

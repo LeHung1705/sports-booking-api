@@ -13,5 +13,6 @@ public class CourtResponse {
     private String name;
     private SportType sport;
     private BigDecimal pricePerHour;
+    private String imageUrl;
     private Boolean isActive;
 }

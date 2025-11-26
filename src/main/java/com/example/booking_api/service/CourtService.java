@@ -30,6 +30,7 @@ public class CourtService {
         court.setName(req.getName());
         court.setSport(req.getSport());
         court.setPricePerHour(req.getPricePerHour());
+        court.setImageUrl(req.getImageUrl());
         court.setIsActive(req.getIsActive());
 
         courtRepository.save(court);
@@ -86,6 +87,7 @@ public class CourtService {
         res.setName(c.getName());
         res.setSport(c.getSport());
         res.setPricePerHour(c.getPricePerHour());
+        res.setImageUrl(c.getImageUrl());
         res.setIsActive(c.getIsActive());
         return res;
     }
