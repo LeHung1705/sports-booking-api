@@ -116,10 +116,15 @@ public class VenueService {
                         .id(v.getId())
                         .name(v.getName())
                         .address(v.getAddress())
+                        .district(v.getDistrict())
+                        .city(v.getCity())
+                        .phone(v.getPhone())
                         .imageUrl(v.getImageUrl())
                         .avgRating(avgRating)
                         .minPrice(agg == null ? null : agg.getMinPrice())
                         .maxPrice(agg == null ? null : agg.getMaxPrice())
+                        .lat(v.getLatitude())
+                        .lng(v.getLongitude())
                         .build();
 
             }).toList();
