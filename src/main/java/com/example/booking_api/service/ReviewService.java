@@ -1,5 +1,6 @@
 package com.example.booking_api.service;
 
+import com.example.booking_api.dto.review.CourtReviewResponse;
 import com.example.booking_api.dto.review.PagedResponse;
 import com.example.booking_api.dto.review.ReviewCreateRequest;
 import com.example.booking_api.dto.review.ReviewItemResponse;
@@ -16,6 +17,7 @@ import com.example.booking_api.repository.VenueRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -121,5 +123,18 @@ public class ReviewService {
                 p.getTotalElements(),
                 p.getTotalPages()
         );
+    }
+
+    public Page<CourtReviewResponse> getReviewsByCourt(UUID courtId, Pageable pageable) {
+        Page<Review> reviews = reviewRepository.findByCourtId(courtId, pageable);
+        return reviews.map(review -> {
+            CourtReviewResponse res = new CourtReviewResponse();
+            res.setId(review.getId());
+            res.setRating(review.getRating());
+            res.setComment(review.getComment());
+            res.setUserName(review.getUser().getFullName());
+            res.setCreatedAt(review.getCreatedAt());
+            return res;
+        });
     }
 }

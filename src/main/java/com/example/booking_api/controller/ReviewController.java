@@ -2,6 +2,10 @@ package com.example.booking_api.controller;
 
 import com.example.booking_api.dto.review.*;
 import com.example.booking_api.service.ReviewService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -49,5 +53,23 @@ public class ReviewController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(404).body(e.getMessage()); // 404 venue not found
         }
+    }
+
+    @GetMapping("/courts/{id}/reviews")
+    public ResponseEntity<?> getCourtReviews(
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt,desc") String sort
+    ) {
+        String[] parts = sort.split(",");
+        String field = parts[0];
+        Sort.Direction direction = parts.length > 1
+                ? Sort.Direction.fromString(parts[1])
+                : Sort.Direction.DESC;
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, field));
+        Page<CourtReviewResponse> result = reviewService.getReviewsByCourt(id, pageable);
+        return ResponseEntity.ok(result);
     }
 }

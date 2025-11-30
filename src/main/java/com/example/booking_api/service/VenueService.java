@@ -4,6 +4,7 @@ import com.example.booking_api.dto.venue.*;
 import com.example.booking_api.entity.Review;
 import com.example.booking_api.entity.User;
 import com.example.booking_api.entity.Venue;
+import com.example.booking_api.repository.CourtRepository;
 import com.example.booking_api.repository.ReviewRepository;
 import com.example.booking_api.repository.UserRepository;
 import com.example.booking_api.repository.VenueRepository;
@@ -14,7 +15,10 @@ import org.springframework.stereotype.Service;
 import java.nio.ByteBuffer;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +26,7 @@ public class VenueService {
     private final VenueRepository venueRepository;
     private final UserRepository userRepository;
     private final ReviewRepository reviewRepository;
+    private  final CourtRepository courtRepository;
 
     public VenueResponse createVenue(String firebaseUid, VenueCreateRequest req) {
         User owner = userRepository.findByFirebaseUid(firebaseUid)
@@ -74,57 +79,75 @@ public class VenueService {
                     req.getRadius()
             );
 
-            if (rawIds.isEmpty()) {
-                return List.of();
-            }
+            if (rawIds.isEmpty()) return List.of();
 
             List<UUID> ids = rawIds.stream()
                     .map(bytes -> {
                         ByteBuffer bb = ByteBuffer.wrap(bytes);
-                        long high = bb.getLong();
-                        long low = bb.getLong();
-                        return new UUID(high, low);
+                        return new UUID(bb.getLong(), bb.getLong());
                     })
                     .toList();
 
-
             List<Venue> venues = venueRepository.findByIdIn(ids);
+            if (venues.isEmpty()) return List.of();
 
-            return venues.stream().map(v ->
-                    VenueListResponse.builder()
-                            .id(v.getId())
-                            .name(v.getName())
-                            .address(v.getAddress())
-                            .imageUrl(v.getImageUrl())
-                            .courts(v.getCourts() == null ? List.of()
-                                    : v.getCourts().stream()
-                                    .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
-                                    .map(c -> VenueListResponse.CourtItem.builder()
-                                            .id(c.getId())
-                                            .name(c.getName())
-                                            .sport(c.getSport() == null ? null : c.getSport().name())
-                                            .build())
-                                    .toList())
-                            .build()
-            ).toList();
+            List<UUID> venueIds = venues.stream().map(Venue::getId).toList();
 
-        }catch (Exception e){
+
+            Map<UUID, CourtRepository.VenuePriceAgg> priceAggMap = courtRepository
+                    .getPriceAggByVenueIds(venueIds)
+                    .stream()
+                    .collect(Collectors.toMap(
+                            CourtRepository.VenuePriceAgg::getVenueId,
+                            Function.identity()
+                    ));
+
+            return venues.stream().map(v -> {
+
+                ReviewRepository.ReviewStats stats = reviewRepository.getVenueStats(v.getId());
+                Double avgRating = null;
+                if (stats != null && stats.getAvg() != null) {
+                    avgRating = Math.round(stats.getAvg() * 10.0) / 10.0;
+                }
+
+                CourtRepository.VenuePriceAgg agg = priceAggMap.get(v.getId());
+
+                return VenueListResponse.builder()
+                        .id(v.getId())
+                        .name(v.getName())
+                        .address(v.getAddress())
+                        .district(v.getDistrict())
+                        .city(v.getCity())
+                        .phone(v.getPhone())
+                        .imageUrl(v.getImageUrl())
+                        .avgRating(avgRating)
+                        .minPrice(agg == null ? null : agg.getMinPrice())
+                        .maxPrice(agg == null ? null : agg.getMaxPrice())
+                        .lat(v.getLatitude())
+                        .lng(v.getLongitude())
+                        .build();
+
+            }).toList();
+
+        } catch (Exception e) {
             throw new RuntimeException("QUERY_ERROR", e);
         }
     }
 
     public VenueDetailResponse getVenueDetail(UUID id) {
-        Venue venue = venueRepository.findWithCourtsById(id).orElseThrow(() -> new RuntimeException("Không tìm thấy sân"));
+        Venue venue = venueRepository.findWithCourtsById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy sân"));
 
-        // Get avg venue
         ReviewRepository.ReviewStats stats = reviewRepository.getVenueStats(id);
         Double avgRating = null;
-        if (stats != null && stats.getAvg() != null) {
-            avgRating = Math.round(stats.getAvg() * 10.0) / 10.0;
-        }
+        Long reviewCount = null;
 
-        // Top 3 review
-        List<Review> top3 = reviewRepository.findTopByVenue(id, PageRequest.of(0, 3));
+        if (stats != null) {
+            if (stats.getAvg() != null) {
+                avgRating = Math.round(stats.getAvg() * 10.0) / 10.0;
+            }
+            reviewCount = stats.getCount();
+        }
 
         return VenueDetailResponse.builder()
                 .id(venue.getId())
@@ -136,6 +159,7 @@ public class VenueService {
                 .description(venue.getDescription())
                 .imageUrl(venue.getImageUrl())
                 .avgRating(avgRating)
+                .reviewCount(reviewCount)
                 .courts(venue.getCourts() == null ? List.of()
                         : venue.getCourts().stream()
                         .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
@@ -143,16 +167,8 @@ public class VenueService {
                                 .id(c.getId())
                                 .name(c.getName())
                                 .sport(c.getSport() == null ? null : c.getSport().name())
-                                .build())
-                        .toList())
-                .reviews(top3.stream()
-                        .map(r -> VenueDetailResponse.ReviewItem.builder()
-                                .id(r.getId())
-                                .rating(r.getRating())
-                                .comment(r.getComment())
-                                .userName(r.getUser().getFullName())
-                                .courtName(r.getCourt().getName())
-                                .createdAt(r.getCreatedAt() == null ? null : r.getCreatedAt().toString())
+                                .imageUrl(c.getImageUrl())
+                                .pricePerHour(c.getPricePerHour())
                                 .build())
                         .toList())
                 .build();
