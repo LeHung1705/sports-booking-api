@@ -13,8 +13,13 @@ public class VenueListResponse {
     private UUID id;
     private String name;
     private String address;
+    private String district;
+    private String city;
+    private String phone;
     private String imageUrl;
     private Double avgRating;
     private BigDecimal minPrice;
     private BigDecimal maxPrice;
+    private Double lat;
+    private Double lng;
 }
