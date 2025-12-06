@@ -68,4 +68,8 @@ public class Venue {
 
     @OneToMany(mappedBy = "venue", fetch = FetchType.LAZY)
     private List<Review> reviews;
+
+    @ElementCollection
+    @CollectionTable(name = "venue_pricing_config", joinColumns = @JoinColumn(name = "venue_id"))
+    private List<PricingRule> pricingConfig;
 }

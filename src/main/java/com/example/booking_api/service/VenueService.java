@@ -1,20 +1,16 @@
 package com.example.booking_api.service;
 
 import com.example.booking_api.dto.venue.*;
-import com.example.booking_api.entity.Review;
-import com.example.booking_api.entity.User;
-import com.example.booking_api.entity.Venue;
-import com.example.booking_api.repository.ReviewRepository;
-import com.example.booking_api.repository.UserRepository;
-import com.example.booking_api.repository.VenueRepository;
+import com.example.booking_api.entity.*;
+import com.example.booking_api.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
-import java.time.OffsetDateTime;
-import java.util.List;
-import java.util.UUID;
+import java.time.*;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +18,7 @@ public class VenueService {
     private final VenueRepository venueRepository;
     private final UserRepository userRepository;
     private final ReviewRepository reviewRepository;
+    private final BookingRepository bookingRepository;
 
     public VenueResponse createVenue(String firebaseUid, VenueCreateRequest req) {
         User owner = userRepository.findByFirebaseUid(firebaseUid)
@@ -87,7 +84,6 @@ public class VenueService {
                     })
                     .toList();
 
-
             List<Venue> venues = venueRepository.findByIdIn(ids);
 
             return venues.stream().map(v ->
@@ -108,7 +104,7 @@ public class VenueService {
                             .build()
             ).toList();
 
-        }catch (Exception e){
+        } catch (Exception e) {
             throw new RuntimeException("QUERY_ERROR", e);
         }
     }
@@ -157,6 +153,7 @@ public class VenueService {
                         .toList())
                 .build();
     }
+
     public VenueResponse updateVenue(String firebaseUid, UUID venueId, VenueUpdateRequest req) {
         User owner = userRepository.findByFirebaseUid(firebaseUid)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -212,6 +209,7 @@ public class VenueService {
                 .isActive(saved.getIsActive())
                 .build();
     }
+
     public void deleteVenue(String firebaseUid, UUID venueId) {
         User user = userRepository.findByFirebaseUid(firebaseUid).orElseThrow(() -> new RuntimeException("User not found"));
         Venue venue = venueRepository.findById(venueId).orElseThrow(() -> new RuntimeException("Venue not found"));
@@ -227,8 +225,84 @@ public class VenueService {
         }
 
         venueRepository.delete(venue);
-
     }
+
+    public VenueAvailabilityResponse getVenueAvailability(UUID venueId, LocalDate date) {
+        Venue venue = venueRepository.findById(venueId)
+                .orElseThrow(() -> new RuntimeException("Venue not found"));
+
+        // 1. Get all bookings for this venue on this date
+        OffsetDateTime startOfDay = date.atStartOfDay().atOffset(ZoneOffset.UTC);
+        OffsetDateTime endOfDay = date.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC);
+        List<Booking> bookings = bookingRepository.findByVenueAndDateRange(venueId, startOfDay, endOfDay);
+
+        // 2. Get all active courts
+        List<Court> courts = venue.getCourts().stream()
+                .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
+                .toList();
+
+        // 3. Generate slots
+        LocalTime openTime = LocalTime.of(6, 0);
+        LocalTime closeTime = LocalTime.of(22, 0);
+
+        List<VenueAvailabilityResponse.CourtAvailability> courtAvailabilities = courts.stream().map(court -> {
+            List<VenueAvailabilityResponse.TimeSlot> slots = new ArrayList<>();
+            LocalTime current = openTime;
+
+            while (current.isBefore(closeTime)) {
+                LocalTime next = current.plusHours(1);
+                OffsetDateTime slotStart = date.atTime(current).atOffset(ZoneOffset.UTC);
+                OffsetDateTime slotEnd = date.atTime(next).atOffset(ZoneOffset.UTC);
+
+                // Check price
+                BigDecimal price = getPriceForSlot(venue, current, next);
+                // Fallback to court base price if no rule matches
+                if (price == null) price = court.getPricePerHour();
+
+                // Check status
+                boolean isBooked = bookings.stream().anyMatch(b ->
+                        b.getCourt().getId().equals(court.getId()) &&
+                                !(b.getEndTime().isBefore(slotStart) || b.getEndTime().isEqual(slotStart) ||
+                                        b.getStartTime().isAfter(slotEnd) || b.getStartTime().isEqual(slotEnd))
+                );
+
+                slots.add(VenueAvailabilityResponse.TimeSlot.builder()
+                        .time(current)
+                        .endTime(next)
+                        .price(price)
+                        .status(isBooked ? "booked" : "available")
+                        .build());
+
+                current = next;
+            }
+
+            return VenueAvailabilityResponse.CourtAvailability.builder()
+                    .courtId(court.getId())
+                    .courtName(court.getName())
+                    .slots(slots)
+                    .build();
+        }).toList();
+
+        return VenueAvailabilityResponse.builder()
+                .venueId(venue.getId())
+                .venueName(venue.getName())
+                .courts(courtAvailabilities)
+                .build();
+    }
+
+    private BigDecimal getPriceForSlot(Venue venue, LocalTime start, LocalTime end) {
+        if (venue.getPricingConfig() == null) return null;
+
+        for (PricingRule rule : venue.getPricingConfig()) {
+            // Simple logic: if slot falls within rule range
+            // Example: Rule 17:00-22:00. Slot 17:00-18:00 -> Start(17) >= RuleStart(17) AND End(18) <= RuleEnd(22)
+            if (!start.isBefore(rule.getStartTime()) && !end.isAfter(rule.getEndTime())) {
+                return rule.getPricePerHour();
+            }
+        }
+        return null;
+    }
+
     private String nullIfBlank(String s) {
         return (s == null || s.isBlank()) ? null : s.trim();
     }

@@ -43,10 +43,12 @@ public class VenueController {
 
     @GetMapping
     public ResponseEntity<?> listVenues(@Valid VenueListRequest request) {
+        System.out.println("DEBUG: VenueController.listVenues called with: " + request);
         try {
             List<VenueListResponse> venues = venueService.searchVenues(request);
             return ResponseEntity.ok(venues);
         } catch (RuntimeException e) {
+            e.printStackTrace(); // Print stack trace to see the error
             return ResponseEntity.status(500).body(Map.of("message", "Query error"));
         }
     }
@@ -60,6 +62,19 @@ public class VenueController {
             return ResponseEntity.status(404).body(Map.of(
                     "message", "Không tìm thấy sân"
             ));
+        }
+    }
+
+    @GetMapping("/{id}/availability")
+    public ResponseEntity<?> getAvailability(
+            @PathVariable UUID id, 
+            @RequestParam("date") @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate date
+    ) {
+        try {
+            return ResponseEntity.ok(venueService.getVenueAvailability(id, date));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
 

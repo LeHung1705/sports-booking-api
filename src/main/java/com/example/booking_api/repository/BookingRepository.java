@@ -51,4 +51,17 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
             @Param("startTime") OffsetDateTime startTime,
             @Param("endTime") OffsetDateTime endTime
     );
+
+    @Query("""
+        SELECT b FROM Booking b
+        WHERE b.court.venue.id = :venueId
+          AND b.status <> com.example.booking_api.entity.enums.BookingStatus.CANCELED
+          AND b.startTime >= :startTime
+          AND b.endTime <= :endTime
+    """)
+    List<Booking> findByVenueAndDateRange(
+            @Param("venueId") UUID venueId,
+            @Param("startTime") OffsetDateTime startTime,
+            @Param("endTime") OffsetDateTime endTime
+    );
 }
