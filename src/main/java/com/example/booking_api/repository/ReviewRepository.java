@@ -12,6 +12,10 @@ import java.util.UUID;
 public interface ReviewRepository extends JpaRepository<Review, UUID> {
 
     boolean existsByBookingId(UUID bookingId);
+    interface ReviewStats {
+        Double getAvg();
+        Long getCount();
+    }
 
     // Lấy page review theo venue (không fetch join để tránh lỗi count query)
     @Query("""
@@ -31,11 +35,7 @@ public interface ReviewRepository extends JpaRepository<Review, UUID> {
     """)
     List<Review> findTopByVenue(@Param("venueId") UUID venueId, Pageable pageable);
 
-    // Thống kê rating trung bình & số lượng
-    interface ReviewStats {
-        Double getAvg();
-        Long getCount();
-    }
+
 
     @Query("""
         select avg(r.rating * 1.0) as avg, count(r.id) as count
@@ -43,4 +43,21 @@ public interface ReviewRepository extends JpaRepository<Review, UUID> {
         where r.venue.id = :venueId
     """)
     ReviewStats getVenueStats(@Param("venueId") UUID venueId);
+
+    @Query("""
+            SELECT AVG(r.rating) AS avg,
+                   COUNT(r)       AS count
+            FROM Review r
+            WHERE r.court.id = :courtId
+            """)
+    ReviewStats getCourtStats(@Param("courtId") UUID courtId);
+
+    @Query("""
+            SELECT r
+            FROM Review r
+            WHERE r.court.id = :courtId
+            ORDER BY r.createdAt DESC
+            """)
+    List<Review> findTopByCourt(@Param("courtId") UUID courtId, Pageable pageable);
+    Page<Review> findByCourtId(UUID courtId, Pageable pageable);
 }

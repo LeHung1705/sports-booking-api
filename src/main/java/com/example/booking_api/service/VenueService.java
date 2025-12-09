@@ -2,11 +2,7 @@ package com.example.booking_api.service;
 
 import com.example.booking_api.dto.venue.*;
 import com.example.booking_api.entity.*;
-
-import com.example.booking_api.repository.UserRepository;
-import com.example.booking_api.repository.ReviewRepository;
-import com.example.booking_api.repository.BookingRepository;
-import com.example.booking_api.repository.VenueRepository;
+import com.example.booking_api.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -15,6 +11,8 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.time.*;
 import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -22,7 +20,8 @@ public class VenueService {
     private final VenueRepository venueRepository;
     private final UserRepository userRepository;
     private final ReviewRepository reviewRepository;
-    private final BookingRepository bookingRepository;
+    private final CourtRepository courtRepository;   // Từ nhánh main
+    private final BookingRepository bookingRepository; // Từ nhánh test-feat
 
     public VenueResponse createVenue(String firebaseUid, VenueCreateRequest req) {
         User owner = userRepository.findByFirebaseUid(firebaseUid)
@@ -64,6 +63,7 @@ public class VenueService {
                 .build();
     }
 
+    // Sử dụng logic từ MAIN (Có tính năng aggregation giá min/max)
     public List<VenueListResponse> searchVenues(VenueListRequest req) {
         try {
             List<byte[]> rawIds = venueRepository.findIds(
@@ -75,9 +75,7 @@ public class VenueService {
                     req.getRadius()
             );
 
-            if (rawIds.isEmpty()) {
-                return List.of();
-            }
+            if (rawIds.isEmpty()) return List.of();
 
             List<UUID> ids = rawIds.stream()
                     .map(bytes -> {
@@ -89,41 +87,67 @@ public class VenueService {
                     .toList();
 
             List<Venue> venues = venueRepository.findByIdIn(ids);
+            if (venues.isEmpty()) return List.of();
 
-            return venues.stream().map(v ->
-                    VenueListResponse.builder()
-                            .id(v.getId())
-                            .name(v.getName())
-                            .address(v.getAddress())
-                            .imageUrl(v.getImageUrl())
-                            .courts(v.getCourts() == null ? List.of()
-                                    : v.getCourts().stream()
-                                    .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
-                                    .map(c -> VenueListResponse.CourtItem.builder()
-                                            .id(c.getId())
-                                            .name(c.getName())
-                                            .sport(c.getSport() == null ? null : c.getSport().name())
-                                            .build())
-                                    .toList())
-                            .build()
-            ).toList();
+            List<UUID> venueIds = venues.stream().map(Venue::getId).toList();
+
+            // Logic từ Main: Map giá min/max
+            Map<UUID, CourtRepository.VenuePriceAgg> priceAggMap = courtRepository
+                    .getPriceAggByVenueIds(venueIds)
+                    .stream()
+                    .collect(Collectors.toMap(
+                            CourtRepository.VenuePriceAgg::getVenueId,
+                            Function.identity()
+                    ));
+
+            return venues.stream().map(v -> {
+                ReviewRepository.ReviewStats stats = reviewRepository.getVenueStats(v.getId());
+                Double avgRating = null;
+                if (stats != null && stats.getAvg() != null) {
+                    avgRating = Math.round(stats.getAvg() * 10.0) / 10.0;
+                }
+
+                CourtRepository.VenuePriceAgg agg = priceAggMap.get(v.getId());
+
+                return VenueListResponse.builder()
+                        .id(v.getId())
+                        .name(v.getName())
+                        .address(v.getAddress())
+                        .district(v.getDistrict())
+                        .city(v.getCity())
+                        .phone(v.getPhone())
+                        .imageUrl(v.getImageUrl())
+                        .avgRating(avgRating)
+                        .minPrice(agg == null ? null : agg.getMinPrice())
+                        .maxPrice(agg == null ? null : agg.getMaxPrice())
+                        .lat(v.getLatitude())
+                        .lng(v.getLongitude())
+                        .build();
+
+            }).toList();
 
         } catch (Exception e) {
             throw new RuntimeException("QUERY_ERROR", e);
         }
     }
 
+    // Sử dụng logic từ MAIN (Có reviewCount và chi tiết Court update hơn)
     public VenueDetailResponse getVenueDetail(UUID id) {
-        Venue venue = venueRepository.findWithCourtsById(id).orElseThrow(() -> new RuntimeException("Không tìm thấy sân"));
+        Venue venue = venueRepository.findWithCourtsById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy sân"));
 
-        // Get avg venue
         ReviewRepository.ReviewStats stats = reviewRepository.getVenueStats(id);
         Double avgRating = null;
-        if (stats != null && stats.getAvg() != null) {
-            avgRating = Math.round(stats.getAvg() * 10.0) / 10.0;
+        Long reviewCount = null;
+
+        if (stats != null) {
+            if (stats.getAvg() != null) {
+                avgRating = Math.round(stats.getAvg() * 10.0) / 10.0;
+            }
+            reviewCount = stats.getCount();
         }
 
-        // Top 3 review
+        // Top 3 reviews (Optional: Nếu bạn muốn giữ cả list review từ test-feat, có thể uncomment đoạn dưới)
         List<Review> top3 = reviewRepository.findTopByVenue(id, PageRequest.of(0, 3));
 
         return VenueDetailResponse.builder()
@@ -136,6 +160,7 @@ public class VenueService {
                 .description(venue.getDescription())
                 .imageUrl(venue.getImageUrl())
                 .avgRating(avgRating)
+                .reviewCount(reviewCount)
                 .courts(venue.getCourts() == null ? List.of()
                         : venue.getCourts().stream()
                         .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
@@ -143,8 +168,11 @@ public class VenueService {
                                 .id(c.getId())
                                 .name(c.getName())
                                 .sport(c.getSport() == null ? null : c.getSport().name())
+                                .imageUrl(c.getImageUrl())
+                                .pricePerHour(c.getPricePerHour())
                                 .build())
                         .toList())
+                // Merge thêm phần reviews từ test-feat vào cấu trúc của main (nếu DTO hỗ trợ)
                 .reviews(top3.stream()
                         .map(r -> VenueDetailResponse.ReviewItem.builder()
                                 .id(r.getId())
@@ -167,33 +195,15 @@ public class VenueService {
             throw new SecurityException("Not allowed");
         }
 
-        if (req.getName() != null) {
-            venue.setName(req.getName());
-        }
-        if (req.getAddress() != null) {
-            venue.setAddress(req.getAddress());
-        }
-        if (req.getDistrict() != null) {
-            venue.setDistrict(req.getDistrict());
-        }
-        if (req.getCity() != null) {
-            venue.setCity(req.getCity());
-        }
-        if (req.getPhone() != null) {
-            venue.setPhone(req.getPhone());
-        }
-        if (req.getDescription() != null) {
-            venue.setDescription(req.getDescription());
-        }
-        if (req.getLat() != null) {
-            venue.setLatitude(req.getLat());
-        }
-        if (req.getLng() != null) {
-            venue.setLongitude(req.getLng());
-        }
-        if (req.getImageUrl() != null) {
-            venue.setImageUrl(req.getImageUrl());
-        }
+        if (req.getName() != null) venue.setName(req.getName());
+        if (req.getAddress() != null) venue.setAddress(req.getAddress());
+        if (req.getDistrict() != null) venue.setDistrict(req.getDistrict());
+        if (req.getCity() != null) venue.setCity(req.getCity());
+        if (req.getPhone() != null) venue.setPhone(req.getPhone());
+        if (req.getDescription() != null) venue.setDescription(req.getDescription());
+        if (req.getLat() != null) venue.setLatitude(req.getLat());
+        if (req.getLng() != null) venue.setLongitude(req.getLng());
+        if (req.getImageUrl() != null) venue.setImageUrl(req.getImageUrl());
 
         venue.setUpdatedAt(OffsetDateTime.now());
         Venue saved = venueRepository.save(venue);
@@ -220,8 +230,7 @@ public class VenueService {
 
         String role = user.getRole() == null ? "" : user.getRole().toString();
 
-        boolean isOwner = venue.getOwner() != null
-                && venue.getOwner().getId().equals(user.getId());
+        boolean isOwner = venue.getOwner() != null && venue.getOwner().getId().equals(user.getId());
         boolean isAdmin = "ADMIN".equalsIgnoreCase(role);
 
         if (!isOwner && !isAdmin) {
@@ -231,6 +240,7 @@ public class VenueService {
         venueRepository.delete(venue);
     }
 
+    // --- NEW METHOD FROM TEST-FEAT: Availability ---
     public VenueAvailabilityResponse getVenueAvailability(UUID venueId, LocalDate date) {
         Venue venue = venueRepository.findById(venueId)
                 .orElseThrow(() -> new RuntimeException("Venue not found"));
@@ -258,8 +268,8 @@ public class VenueService {
                 .toList();
 
         // 3. Generate 30-minute slots
-        LocalTime openTime = LocalTime.of(5, 0);  // Changed to 05:00
-        LocalTime closeTime = LocalTime.of(23, 0); // Changed to 23:00
+        LocalTime openTime = LocalTime.of(5, 0);  // 05:00
+        LocalTime closeTime = LocalTime.of(23, 0); // 23:00
 
         java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm");
 
@@ -321,8 +331,6 @@ public class VenueService {
         if (venue.getPricingConfig() == null) return null;
 
         for (PricingRule rule : venue.getPricingConfig()) {
-            // Simple logic: if slot falls within rule range
-            // Example: Rule 17:00-22:00. Slot 17:00-18:00 -> Start(17) >= RuleStart(17) AND End(18) <= RuleEnd(22)
             if (!start.isBefore(rule.getStartTime()) && !end.isAfter(rule.getEndTime())) {
                 return rule.getPricePerHour();
             }
