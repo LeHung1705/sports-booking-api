@@ -176,7 +176,7 @@ public class VenueService {
                 .reviews(top3.stream()
                         .map(r -> VenueDetailResponse.ReviewItem.builder()
                                 .id(r.getId())
-                                .rating(r.getRating())
+                                .rating(r.getRating() == null ? null : r.getRating().doubleValue())
                                 .comment(r.getComment())
                                 .userName(r.getUser().getFullName())
                                 .courtName(r.getCourt().getName())

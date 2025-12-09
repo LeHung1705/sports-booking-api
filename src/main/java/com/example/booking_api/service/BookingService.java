@@ -159,6 +159,9 @@ public class BookingService {
         LocalTime closeTime = LocalTime.of(23, 0);
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
+        
+        // Capture current time to disable past slots
+        LocalDateTime now = LocalDateTime.now();
 
         while (current.isBefore(closeTime)) {
             // Force 30-Minute Interval Loop
@@ -167,6 +170,9 @@ public class BookingService {
             // Tạo Slot chuẩn
             LocalDateTime slotStart = LocalDateTime.of(date, current);
             LocalDateTime slotEnd = LocalDateTime.of(date, next);
+            
+            // Check if slot is in the past
+            boolean isPast = slotStart.isBefore(now);
 
             // 2. Check Overlap
             boolean isBooked = bookings.stream().anyMatch(b -> {
@@ -198,7 +204,7 @@ public class BookingService {
                     .time(current.format(formatter))     // Trả về string "07:00"
                     .endTime(next.format(formatter))     // Trả về string "07:30"
                     .price(slotPrice)
-                    .status(isBooked ? "booked" : "available")
+                    .status((isBooked || isPast) ? "booked" : "available")
                     .build());
 
             current = next;
@@ -264,8 +270,15 @@ public class BookingService {
             throw new RuntimeException("BOOKING_PRICE_NOT_SET");
         }
 
+        System.out.println("DEBUG APPLY VOUCHER:");
+        System.out.println("  -> Booking ID: " + booking.getId());
+        System.out.println("  -> Original Price (Total Amount): " + originalPrice);
+
         String code = req.getVoucherCode().trim();
         Voucher voucher = voucherRepository.findByCodeIgnoreCase(code).orElseThrow(() -> new RuntimeException("VOUCHER_NOT_FOUND"));
+
+        System.out.println("  -> Voucher Code: " + voucher.getCode());
+        System.out.println("  -> Voucher Min Order: " + voucher.getMinOrderAmount());
 
         // Validate voucher
         LocalDateTime now = LocalDateTime.now();
@@ -293,7 +306,15 @@ public class BookingService {
 
         if (voucher.getMinOrderAmount() != null
                 && originalPrice.compareTo(voucher.getMinOrderAmount()) < 0) {
-            throw new RuntimeException("MIN_ORDER_NOT_REACHED");
+            throw new RuntimeException("MIN_ORDER_NOT_REACHED: Booking Total (" + originalPrice + ") < Voucher Min (" + voucher.getMinOrderAmount() + ")");
+        }
+
+        // Check if voucher is applicable to this venue
+        if (voucher.getOwner() != null) {
+            UUID venueOwnerId = booking.getCourt().getVenue().getOwner().getId();
+            if (!venueOwnerId.equals(voucher.getOwner().getId())) {
+                throw new RuntimeException("VOUCHER_NOT_APPLICABLE");
+            }
         }
 
 

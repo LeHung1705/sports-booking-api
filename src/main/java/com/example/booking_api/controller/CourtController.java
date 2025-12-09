@@ -39,7 +39,7 @@ public class CourtController {
             @PathVariable UUID venueId,
             @PathVariable UUID courtId
     ) {
-        return ResponseEntity.ok(courtService.getCourtById(courtId)); // Hoặc courtService.getCourt(venueId, courtId) tùy service của bạn
+        return ResponseEntity.ok(courtService.getCourtById(venueId, courtId));
     }
 
     // 3. Method từ nhánh TEST-FEAT: Xem lịch trống (Availability)
@@ -52,6 +52,15 @@ public class CourtController {
     ) {
         // Ideally check if court belongs to venueId
         return ResponseEntity.ok(bookingService.getAvailability(courtId, date));
+    }
+
+    @PreAuthorize("hasRole('OWNER')")
+    @PostMapping
+    public ResponseEntity<CourtResponse> createCourt(
+            @PathVariable UUID venueId,
+            @Valid @RequestBody CourtRequest request
+    ) {
+        return ResponseEntity.ok(courtService.createCourt(venueId, request));
     }
 
     // Các method Update và Delete giữ nguyên

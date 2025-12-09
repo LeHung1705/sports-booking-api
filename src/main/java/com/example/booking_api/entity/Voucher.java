@@ -19,8 +19,8 @@ public class Voucher {
     private UUID id;
 
     // 👇 NEW: owner của voucher (chủ sân)
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "owner_id", nullable = false)      // BINARY(16)
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "owner_id", nullable = true)      // BINARY(16)
     private User owner;
 
     @Column(nullable = false, length = 64)
