@@ -56,8 +56,8 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         SELECT b FROM Booking b
         WHERE b.court.venue.id = :venueId
           AND b.status <> com.example.booking_api.entity.enums.BookingStatus.CANCELED
-          AND b.startTime >= :startTime
-          AND b.endTime <= :endTime
+          AND b.endTime > :startTime
+          AND b.startTime < :endTime
     """)
     List<Booking> findByVenueAndDateRange(
             @Param("venueId") UUID venueId,
@@ -69,8 +69,8 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         SELECT b FROM Booking b
         WHERE b.court.id = :courtId
           AND b.status <> com.example.booking_api.entity.enums.BookingStatus.CANCELED
-          AND b.startTime >= :startTime
-          AND b.endTime <= :endTime
+          AND b.endTime > :startTime
+          AND b.startTime < :endTime
     """)
     List<Booking> findByCourtAndDateRange(
             @Param("courtId") UUID courtId,

@@ -4,7 +4,6 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.math.BigDecimal;
-import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,9 +25,9 @@ public class VenueAvailabilityResponse {
     @Data
     @Builder
     public static class TimeSlot {
-        private LocalTime time;
-        private LocalTime endTime;
+        private String time;      // Changed from LocalTime to String "HH:mm"
+        private String endTime;   // Changed from LocalTime to String "HH:mm"
         private BigDecimal price;
-        private String status; // available, booked
+        private String status;    // "available" or "booked"
     }
 }

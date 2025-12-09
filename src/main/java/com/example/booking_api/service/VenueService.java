@@ -2,7 +2,11 @@ package com.example.booking_api.service;
 
 import com.example.booking_api.dto.venue.*;
 import com.example.booking_api.entity.*;
-import com.example.booking_api.repository.*;
+
+import com.example.booking_api.repository.UserRepository;
+import com.example.booking_api.repository.ReviewRepository;
+import com.example.booking_api.repository.BookingRepository;
+import com.example.booking_api.repository.VenueRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -231,50 +235,71 @@ public class VenueService {
         Venue venue = venueRepository.findById(venueId)
                 .orElseThrow(() -> new RuntimeException("Venue not found"));
 
+        System.out.println("=== VENUE AVAILABILITY DEBUG ===");
+        System.out.println("Venue ID: " + venueId);
+        System.out.println("Date: " + date);
+
         // 1. Get all bookings for this venue on this date
         OffsetDateTime startOfDay = date.atStartOfDay().atOffset(ZoneOffset.UTC);
         OffsetDateTime endOfDay = date.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC);
         List<Booking> bookings = bookingRepository.findByVenueAndDateRange(venueId, startOfDay, endOfDay);
+
+        System.out.println("Found " + bookings.size() + " bookings for venue");
+        bookings.forEach(b -> {
+            System.out.println(String.format(
+                    "  Booking: court=%s, [%s to %s], status=%s",
+                    b.getCourt().getName(), b.getStartTime(), b.getEndTime(), b.getStatus()
+            ));
+        });
 
         // 2. Get all active courts
         List<Court> courts = venue.getCourts().stream()
                 .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
                 .toList();
 
-        // 3. Generate slots
-        LocalTime openTime = LocalTime.of(6, 0);
-        LocalTime closeTime = LocalTime.of(22, 0);
+        // 3. Generate 30-minute slots
+        LocalTime openTime = LocalTime.of(5, 0);  // Changed to 05:00
+        LocalTime closeTime = LocalTime.of(23, 0); // Changed to 23:00
+
+        java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm");
 
         List<VenueAvailabilityResponse.CourtAvailability> courtAvailabilities = courts.stream().map(court -> {
             List<VenueAvailabilityResponse.TimeSlot> slots = new ArrayList<>();
             LocalTime current = openTime;
 
             while (current.isBefore(closeTime)) {
-                LocalTime next = current.plusHours(1);
+                LocalTime next = current.plusMinutes(30);
                 OffsetDateTime slotStart = date.atTime(current).atOffset(ZoneOffset.UTC);
                 OffsetDateTime slotEnd = date.atTime(next).atOffset(ZoneOffset.UTC);
 
-                // Check price
-                BigDecimal price = getPriceForSlot(venue, current, next);
-                // Fallback to court base price if no rule matches
-                if (price == null) price = court.getPricePerHour();
+                // Check price for 30-min slot
+                BigDecimal pricePerHour = getPriceForSlot(venue, current, next);
+                if (pricePerHour == null) pricePerHour = court.getPricePerHour();
 
-                // Check status
+                // Calculate 30-min price (half of hourly rate)
+                BigDecimal slotPrice = pricePerHour.divide(BigDecimal.valueOf(2), 2, java.math.RoundingMode.HALF_UP);
+
+                // Check if slot overlaps with any booking
                 boolean isBooked = bookings.stream().anyMatch(b ->
                         b.getCourt().getId().equals(court.getId()) &&
-                                !(b.getEndTime().isBefore(slotStart) || b.getEndTime().isEqual(slotStart) ||
-                                        b.getStartTime().isAfter(slotEnd) || b.getStartTime().isEqual(slotEnd))
+                                b.getStartTime().isBefore(slotEnd) &&
+                                b.getEndTime().isAfter(slotStart)
                 );
 
+                String timeStr = current.format(formatter);
+                String endTimeStr = next.format(formatter);
+
                 slots.add(VenueAvailabilityResponse.TimeSlot.builder()
-                        .time(current)
-                        .endTime(next)
-                        .price(price)
+                        .time(timeStr)      // String format "HH:mm"
+                        .endTime(endTimeStr) // String format "HH:mm"
+                        .price(slotPrice)    // 30-min price
                         .status(isBooked ? "booked" : "available")
                         .build());
 
                 current = next;
             }
+
+            System.out.println(String.format("Court %s: generated %d slots", court.getName(), slots.size()));
 
             return VenueAvailabilityResponse.CourtAvailability.builder()
                     .courtId(court.getId())
@@ -282,6 +307,8 @@ public class VenueService {
                     .slots(slots)
                     .build();
         }).toList();
+
+        System.out.println("=== END VENUE AVAILABILITY DEBUG ===");
 
         return VenueAvailabilityResponse.builder()
                 .venueId(venue.getId())

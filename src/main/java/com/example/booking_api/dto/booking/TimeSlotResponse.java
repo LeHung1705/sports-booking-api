@@ -4,13 +4,12 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.math.BigDecimal;
-import java.time.LocalTime;
 
 @Data
 @Builder
 public class TimeSlotResponse {
-    private LocalTime time;
-    private LocalTime endTime;
+    private String time;       // Changed from LocalTime to String
+    private String endTime;    // Changed from LocalTime to String
     private BigDecimal price;
-    private String status; // AVAILABLE, BOOKED
+    private String status;     // "available" or "booked"
 }
