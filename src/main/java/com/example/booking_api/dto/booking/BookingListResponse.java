@@ -3,7 +3,7 @@ package com.example.booking_api.dto.booking;
 import lombok.Builder;
 import lombok.Data;
 
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Data
@@ -11,6 +11,6 @@ import java.util.UUID;
 public class BookingListResponse {
     private UUID id;
     private String court;
-    private OffsetDateTime startTime;
+    private LocalDateTime startTime;
     private String status;
 }

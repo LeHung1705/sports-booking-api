@@ -24,8 +24,8 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -60,8 +60,8 @@ public class PaymentService {
         payment.setProvider("VNPAY");
         payment.setStatus(PaymentStatus.INIT);
         payment.setAmount(totalAmount);
-        payment.setCreatedAt(OffsetDateTime.now());
-        payment.setUpdatedAt(OffsetDateTime.now());
+        payment.setCreatedAt(java.time.OffsetDateTime.now());
+        payment.setUpdatedAt(java.time.OffsetDateTime.now());
 
         String vnpTxnRef = VnPayConfig.getRandomNumber(10);
         payment.setVnpTxnRef(vnpTxnRef);
@@ -216,16 +216,25 @@ public class PaymentService {
 
             String vnpPayDate = allParams.get("vnp_PayDate"); // yyyyMMddHHmmss
             if (vnpPayDate != null) {
+                // Payment entity uses OffsetDateTime, so we need to convert to OffsetDateTime
+                // NOTE: The previous instruction said "Booking entity to use LocalDateTime",
+                // but Payment entity was not mentioned to be changed.
+                // However, I see "PaymentService.java is still trying to assign OffsetDateTime values to the Booking entity".
+                // So I must fix the assignment to Booking.
+                
+                // Let's check where Booking is used.
+                // booking.setUpdatedAt(OffsetDateTime.now()) -> CHANGE TO LocalDateTime.now()
+            
                 payment.setPaidAt(parseVnpPayDate(vnpPayDate));
             }
             booking.setStatus(BookingStatus.CONFIRMED);
-            booking.setUpdatedAt(OffsetDateTime.now());
+            booking.setUpdatedAt(LocalDateTime.now()); // FIXED: Use LocalDateTime
             bookingRepository.save(booking);
             message = "Thanh toán thành công";
         } else if ("24".equals(vnpResponseCode)) {
             payment.setStatus(PaymentStatus.FAILED);
             booking.setStatus(BookingStatus.CANCELED);
-            booking.setUpdatedAt(OffsetDateTime.now());
+            booking.setUpdatedAt(LocalDateTime.now()); // FIXED: Use LocalDateTime
             bookingRepository.save(booking);
             message = "Giao dịch bị hủy bởi người dùng";
         } else if ("91".equals(vnpResponseCode)) {
@@ -291,18 +300,19 @@ public class PaymentService {
         } catch (JsonProcessingException e) {
             payment.setReturnPayload(null);
         }
-        payment.setUpdatedAt(OffsetDateTime.now());
+        payment.setUpdatedAt(java.time.OffsetDateTime.now());
         paymentRepository.save(payment);
     }
 
-    private OffsetDateTime parseVnpPayDate(String vnpPayDate) {
+    private java.time.OffsetDateTime parseVnpPayDate(String vnpPayDate) {
         try {
+            // VNPay sends date in GMT+7
             SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMddHHmmss");
             sdf.setTimeZone(TimeZone.getTimeZone("Etc/GMT+7"));
             Date date = sdf.parse(vnpPayDate);
-            return date.toInstant().atOffset(ZoneOffset.ofHours(7));
+            return date.toInstant().atOffset(java.time.ZoneOffset.ofHours(7));
         } catch (ParseException e) {
-            return OffsetDateTime.now();
+            return java.time.OffsetDateTime.now();
         }
     }
 }

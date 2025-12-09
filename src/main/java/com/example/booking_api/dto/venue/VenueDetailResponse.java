@@ -23,6 +23,7 @@ public class VenueDetailResponse {
     private Long reviewCount;
 
     private List<CourtItem> courts;
+    private List<ReviewItem> reviews;
 
     @Data
     @Builder
@@ -32,5 +33,18 @@ public class VenueDetailResponse {
         private String sport;
         private String imageUrl;
         private BigDecimal pricePerHour;
+    }
+
+    @Data
+    @Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    public static class ReviewItem {
+        private UUID id;
+        private Double rating;
+        private String comment;
+        private String userName;
+        private String courtName;
+        private String createdAt;
     }
 }

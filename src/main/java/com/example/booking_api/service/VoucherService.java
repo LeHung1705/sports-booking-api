@@ -138,15 +138,19 @@ public class VoucherService {
 
         // 👇 NEW: bắt buộc có venueId để check owner
         if (req.getVenueId() == null) {
-            return new PreviewResponse(false, BigDecimal.ZERO, "Venue is required");
+            return new PreviewResponse(false, BigDecimal.ZERO, "Voucher không hợp lệ");
         }
         Venue venue = venueRepository.findById(req.getVenueId())
                 .orElse(null);
         if (venue == null) {
-            return new PreviewResponse(false, BigDecimal.ZERO, "Venue not found");
+            return new PreviewResponse(false, BigDecimal.ZERO, "Voucher không hợp lệ");
         }
-        if (venue.getOwner() == null || !venue.getOwner().getId().equals(v.getOwner().getId())) {
-            return new PreviewResponse(false, BigDecimal.ZERO, "Voucher not applicable to this venue");
+        
+        // Fix: Allow Admin voucher (owner == null) OR Owner Match
+        if (v.getOwner() != null) {
+             if (venue.getOwner() == null || !venue.getOwner().getId().equals(v.getOwner().getId())) {
+                 return new PreviewResponse(false, BigDecimal.ZERO, "Voucher not applicable to this venue");
+             }
         }
 
         BigDecimal discount;
