@@ -16,18 +16,33 @@ import com.example.booking_api.dto.booking.TimeSlotResponse;
 import com.example.booking_api.service.BookingService;
 import java.time.LocalDate;
 
-// ... existing imports
-
 @RestController
 @RequestMapping("/api/v1/venues/{venueId}/courts")
 @RequiredArgsConstructor
 public class CourtController {
 
     private final CourtService courtService;
-    private final BookingService bookingService; // Inject BookingService
+    private final BookingService bookingService;
 
-    // ... existing methods
+    // 1. Method từ nhánh MAIN: Lấy danh sách Court
+    @GetMapping
+    public ResponseEntity<List<CourtResponse>> getCourts(
+            @PathVariable UUID venueId
+    ) {
+        return ResponseEntity.ok(courtService.getCourts(venueId));
+    }
 
+    // 2. Method từ nhánh MAIN: Lấy chi tiết 1 Court
+    // (Tôi đã bổ sung phần body vì nó bị cắt mất trong conflict)
+    @GetMapping("/{courtId}")
+    public ResponseEntity<CourtResponse> getCourt(
+            @PathVariable UUID venueId,
+            @PathVariable UUID courtId
+    ) {
+        return ResponseEntity.ok(courtService.getCourtById(courtId)); // Hoặc courtService.getCourt(venueId, courtId) tùy service của bạn
+    }
+
+    // 3. Method từ nhánh TEST-FEAT: Xem lịch trống (Availability)
     @PreAuthorize("hasAnyRole('USER', 'OWNER')")
     @GetMapping("/{courtId}/availability")
     public ResponseEntity<List<TimeSlotResponse>> getAvailability(
@@ -39,6 +54,7 @@ public class CourtController {
         return ResponseEntity.ok(bookingService.getAvailability(courtId, date));
     }
 
+    // Các method Update và Delete giữ nguyên
     @PreAuthorize("hasRole('OWNER')")
     @PutMapping("/{courtId}")
     public ResponseEntity<CourtResponse> updateCourt(
