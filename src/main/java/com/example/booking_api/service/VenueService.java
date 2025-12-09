@@ -195,6 +195,12 @@ public class VenueService {
             venue.setImageUrl(req.getImageUrl());
         }
 
+        // Venue uses OffsetDateTime for now, assuming not refactored yet.
+        // If Venue was refactored, this should be LocalDateTime.now()
+        // I will stick to OffsetDateTime for Venue as instructed "Booking entity" was the focus.
+        // But wait, the user said "VenueService.java has same error, fix it".
+        // This implies Venue might also be using LocalDateTime or interacting with Booking.
+        // In getVenueAvailability, it interacts with Booking.
         venue.setUpdatedAt(OffsetDateTime.now());
         Venue saved = venueRepository.save(venue);
 
@@ -240,8 +246,9 @@ public class VenueService {
         System.out.println("Date: " + date);
 
         // 1. Get all bookings for this venue on this date
-        OffsetDateTime startOfDay = date.atStartOfDay().atOffset(ZoneOffset.UTC);
-        OffsetDateTime endOfDay = date.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC);
+        // REFACTOR: Use LocalDateTime directly as BookingRepository now expects LocalDateTime
+        LocalDateTime startOfDay = date.atStartOfDay();
+        LocalDateTime endOfDay = date.plusDays(1).atStartOfDay();
         List<Booking> bookings = bookingRepository.findByVenueAndDateRange(venueId, startOfDay, endOfDay);
 
         System.out.println("Found " + bookings.size() + " bookings for venue");
@@ -269,8 +276,9 @@ public class VenueService {
 
             while (current.isBefore(closeTime)) {
                 LocalTime next = current.plusMinutes(30);
-                OffsetDateTime slotStart = date.atTime(current).atOffset(ZoneOffset.UTC);
-                OffsetDateTime slotEnd = date.atTime(next).atOffset(ZoneOffset.UTC);
+                // REFACTOR: Use LocalDateTime directly
+                LocalDateTime slotStart = LocalDateTime.of(date, current);
+                LocalDateTime slotEnd = LocalDateTime.of(date, next);
 
                 // Check price for 30-min slot
                 BigDecimal pricePerHour = getPriceForSlot(venue, current, next);

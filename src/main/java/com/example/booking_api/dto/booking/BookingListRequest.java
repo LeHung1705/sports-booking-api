@@ -4,7 +4,7 @@ import com.example.booking_api.entity.enums.BookingStatus;
 import lombok.Data;
 import org.springframework.format.annotation.DateTimeFormat;
 
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 
 @Data
 public class BookingListRequest {
@@ -12,8 +12,8 @@ public class BookingListRequest {
     private BookingStatus status;
 
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-    private OffsetDateTime from;
+    private LocalDateTime from;
 
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-    private OffsetDateTime to;
+    private LocalDateTime to;
 }

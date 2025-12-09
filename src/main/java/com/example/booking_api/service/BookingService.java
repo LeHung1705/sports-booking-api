@@ -12,7 +12,10 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.*;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,9 +30,6 @@ public class BookingService {
     private final CourtRepository courtRepository;
     private final VoucherRepository voucherRepository;
     private final VoucherRedemptionRepository voucherRedemptionRepository;
-
-    // Định nghĩa múi giờ Việt Nam cố định để đồng bộ cả hệ thống
-    private final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     public List<BookingListResponse> listUserBookings(String firebaseUid, BookingListRequest req) {
         try {
@@ -62,8 +62,8 @@ public class BookingService {
         System.out.println("DEBUG SERVICE - Searching for firebaseUid: " + firebaseUid);
         User user = userRepository.findByFirebaseUid(firebaseUid).orElseThrow(() -> new RuntimeException("User not found"));
 
-        OffsetDateTime start = req.getStartTime();
-        OffsetDateTime end = req.getEndTime();
+        LocalDateTime start = req.getStartTime();
+        LocalDateTime end = req.getEndTime();
 
         if (start == null || end == null) {
             throw new IllegalArgumentException("start_time and end_time are required");
@@ -94,16 +94,14 @@ public class BookingService {
         BigDecimal totalAmount = BigDecimal.ZERO;
         Venue venue = court.getVenue();
 
-        OffsetDateTime slotStart = start;
+        LocalDateTime slotStart = start;
         while (slotStart.isBefore(end)) {
-            OffsetDateTime slotEnd = slotStart.plusMinutes(30);
+            LocalDateTime slotEnd = slotStart.plusMinutes(30);
             if (slotEnd.isAfter(end)) {
                 slotEnd = end;
             }
 
-            // Convert sang giờ địa phương để so sánh với Rule (VD: Rule set 17:00 là giờ VN)
-            LocalTime slotStartTimeLocal = slotStart.atZoneSameInstant(VN_ZONE).toLocalTime();
-
+            LocalTime slotStartTimeLocal = slotStart.toLocalTime();
             BigDecimal slotBasePricePerHour = court.getPricePerHour();
 
             if (venue.getPricingConfig() != null) {
@@ -123,7 +121,7 @@ public class BookingService {
 
         totalAmount = totalAmount.setScale(2, RoundingMode.HALF_UP);
 
-        OffsetDateTime now = OffsetDateTime.now();
+        LocalDateTime now = LocalDateTime.now();
 
         Booking booking = new Booking();
         booking.setUser(user);
@@ -149,19 +147,14 @@ public class BookingService {
         Venue venue = court.getVenue();
 
         // 1. Xác định khoảng thời gian tìm kiếm (Search Window)
-        // Convert ngày được chọn (00:00 VN) sang UTC để query DB
-        // Trừ thêm 12 tiếng và cộng thêm 12 tiếng để bao trùm mọi khả năng lệch múi giờ trong DB
-        ZonedDateTime startOfDayVN = date.atStartOfDay(VN_ZONE);
-        ZonedDateTime endOfDayVN = date.plusDays(1).atStartOfDay(VN_ZONE);
-
-        OffsetDateTime searchStart = startOfDayVN.minusHours(12).toOffsetDateTime();
-        OffsetDateTime searchEnd = endOfDayVN.plusHours(12).toOffsetDateTime();
+        LocalDateTime searchStart = date.atStartOfDay();
+        LocalDateTime searchEnd = date.plusDays(1).atStartOfDay();
 
         List<Booking> bookings = bookingRepository.findByCourtAndDateRange(courtId, searchStart, searchEnd);
 
         List<TimeSlotResponse> slots = new ArrayList<>();
 
-        // Loop từ 05:00 -> 23:00 (Giờ Việt Nam)
+        // Loop từ 05:00 -> 23:00
         LocalTime current = LocalTime.of(5, 0);
         LocalTime closeTime = LocalTime.of(23, 0);
 
@@ -171,26 +164,22 @@ public class BookingService {
             // Force 30-Minute Interval Loop
             LocalTime next = current.plusMinutes(30);
 
-            // Tạo Slot chuẩn theo múi giờ VN
-            ZonedDateTime slotStartZoned = date.atTime(current).atZone(VN_ZONE);
-            ZonedDateTime slotEndZoned = date.atTime(next).atZone(VN_ZONE);
+            // Tạo Slot chuẩn
+            LocalDateTime slotStart = LocalDateTime.of(date, current);
+            LocalDateTime slotEnd = LocalDateTime.of(date, next);
 
-            // Chuyển sang Instant (Trục thời gian thực) để so sánh tuyệt đối
-            Instant sStart = slotStartZoned.toInstant();
-            Instant sEnd = slotEndZoned.toInstant();
-
-            // 2. Check Overlap (Dùng Instant để so sánh không sợ lệch offset)
+            // 2. Check Overlap
             boolean isBooked = bookings.stream().anyMatch(b -> {
                 // Bỏ qua đơn đã huỷ hoặc lỗi
                 if (b.getStatus() == BookingStatus.CANCELED || b.getStatus() == BookingStatus.FAILED) {
                     return false;
                 }
 
-                Instant bStart = b.getStartTime().toInstant();
-                Instant bEnd = b.getEndTime().toInstant();
+                LocalDateTime bStart = b.getStartTime();
+                LocalDateTime bEnd = b.getEndTime();
 
                 // Logic Giao nhau: (StartA < EndB) VÀ (EndA > StartB)
-                return sStart.isBefore(bEnd) && sEnd.isAfter(bStart);
+                return slotStart.isBefore(bEnd) && slotEnd.isAfter(bStart);
             });
 
             // 3. Tính giá (Dynamic Pricing)
@@ -216,9 +205,6 @@ public class BookingService {
         }
         return slots;
     }
-
-    // ... (Giữ nguyên các hàm getBookingDetail, applyVoucher, removeVoucher, cancelBooking bên dưới)
-    // Copy lại các hàm đó vào đây y nguyên như file cũ của bạn.
 
     public BookingDetailResponse getBookingDetail(String firebaseUid, UUID bookingId) {
         User me = userRepository.findByFirebaseUid(firebaseUid)
@@ -282,17 +268,21 @@ public class BookingService {
         Voucher voucher = voucherRepository.findByCodeIgnoreCase(code).orElseThrow(() -> new RuntimeException("VOUCHER_NOT_FOUND"));
 
         // Validate voucher
-        OffsetDateTime now = OffsetDateTime.now();
+        LocalDateTime now = LocalDateTime.now();
+        
+        // Convert Voucher OffsetDateTime to LocalDateTime for simple comparison
+        LocalDateTime voucherValidFrom = voucher.getValidFrom() != null ? voucher.getValidFrom().toLocalDateTime() : null;
+        LocalDateTime voucherValidTo = voucher.getValidTo() != null ? voucher.getValidTo().toLocalDateTime() : null;
 
         if (Boolean.FALSE.equals(voucher.getActive())) {
             throw new RuntimeException("VOUCHER_EXPIRED");
         }
 
-        if (voucher.getValidFrom() != null && now.isBefore(voucher.getValidFrom())) {
+        if (voucherValidFrom != null && now.isBefore(voucherValidFrom)) {
             throw new RuntimeException("VOUCHER_EXPIRED");
         }
 
-        if (voucher.getValidTo() != null && now.isAfter(voucher.getValidTo())) {
+        if (voucherValidTo != null && now.isAfter(voucherValidTo)) {
             throw new RuntimeException("VOUCHER_EXPIRED");
         }
 
@@ -339,7 +329,8 @@ public class BookingService {
         redemption.setUser(me);
         redemption.setBooking(booking);
         redemption.setDiscountValue(discount);
-        redemption.setCreatedAt(now);
+        // Assuming VoucherRedemption still uses OffsetDateTime
+        redemption.setCreatedAt(java.time.OffsetDateTime.now());
 
         voucherRepository.save(voucher);
         bookingRepository.save(booking);
@@ -368,7 +359,7 @@ public class BookingService {
         BigDecimal original = booking.getTotalAmount().add(redemption.getDiscountValue());
         booking.setTotalAmount(original);
         booking.setDiscountAmount(BigDecimal.ZERO);
-        booking.setUpdatedAt(OffsetDateTime.now());
+        booking.setUpdatedAt(LocalDateTime.now());
 
 
         Voucher voucher = redemption.getVoucher();
@@ -407,7 +398,7 @@ public class BookingService {
             throw new RuntimeException("CANCEL_WINDOW_PASSED");
         }
 
-        OffsetDateTime now = OffsetDateTime.now();
+        LocalDateTime now = LocalDateTime.now();
         if (booking.getStartTime() != null && !now.isBefore(booking.getStartTime())) {
             throw new RuntimeException("CANCEL_WINDOW_PASSED");
         }

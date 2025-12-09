@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -31,8 +31,8 @@ public class Booking {
     @JoinColumn(name = "court_id", nullable = false)
     private Court court;
 
-    private OffsetDateTime startTime;
-    private OffsetDateTime endTime;
+    private LocalDateTime startTime;
+    private LocalDateTime endTime;
 
     @Column(precision = 15, scale = 2)
     private BigDecimal totalAmount;
@@ -48,6 +48,6 @@ public class Booking {
     @OneToOne(mappedBy = "booking", fetch = FetchType.LAZY)
     private Payment payment;
 
-    private OffsetDateTime createdAt = OffsetDateTime.now();
-    private OffsetDateTime updatedAt = OffsetDateTime.now();
+    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime updatedAt = LocalDateTime.now();
 }
