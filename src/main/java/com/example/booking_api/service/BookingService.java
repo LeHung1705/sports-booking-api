@@ -12,8 +12,9 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.Duration;
-import java.time.OffsetDateTime;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,9 +28,11 @@ public class BookingService {
     private final VoucherRepository voucherRepository;
     private final VoucherRedemptionRepository voucherRedemptionRepository;
 
+    // Định nghĩa múi giờ Việt Nam cố định để đồng bộ cả hệ thống
+    private final ZoneId VN_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
     public List<BookingListResponse> listUserBookings(String firebaseUid, BookingListRequest req) {
         try {
-
             User user = userRepository.findByFirebaseUid(firebaseUid)
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -50,12 +53,13 @@ public class BookingService {
                     .toList();
 
         } catch (Exception e) {
-
             throw new RuntimeException("QUERY_ERROR", e);
         }
     }
 
+    @Transactional
     public BookingCreateResponse createBooking(String firebaseUid, BookingCreateRequest req) {
+        System.out.println("DEBUG SERVICE - Searching for firebaseUid: " + firebaseUid);
         User user = userRepository.findByFirebaseUid(firebaseUid).orElseThrow(() -> new RuntimeException("User not found"));
 
         OffsetDateTime start = req.getStartTime();
@@ -68,7 +72,7 @@ public class BookingService {
             throw new IllegalArgumentException("start_time must be before end_time");
         }
 
-        Court court = courtRepository.findById(req.getCourtId()).orElseThrow(() -> new RuntimeException("court not found"));
+        Court court = courtRepository.findById(req.getCourtId()).orElseThrow(() -> new RuntimeException("Court not found"));
 
         if (Boolean.FALSE.equals(court.getIsActive())) {
             throw new IllegalArgumentException("Court is not active");
@@ -77,7 +81,6 @@ public class BookingService {
         long overlapCount = bookingRepository.countOverlappingBookings(court.getId(), start, end);
 
         if (overlapCount > 0) {
-            // để controller map thành 409
             throw new RuntimeException("TIME_OVERLAP");
         }
 
@@ -87,17 +90,40 @@ public class BookingService {
             throw new IllegalArgumentException("duration must be greater than zero");
         }
 
-        BigDecimal pricePerHour = court.getPricePerHour();
-        if (pricePerHour == null) {
-            throw new IllegalArgumentException("Court price is not configured");
+        // Logic tính giá Dynamic
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        Venue venue = court.getVenue();
+
+        OffsetDateTime slotStart = start;
+        while (slotStart.isBefore(end)) {
+            OffsetDateTime slotEnd = slotStart.plusMinutes(30);
+            if (slotEnd.isAfter(end)) {
+                slotEnd = end;
+            }
+
+            // Convert sang giờ địa phương để so sánh với Rule (VD: Rule set 17:00 là giờ VN)
+            LocalTime slotStartTimeLocal = slotStart.atZoneSameInstant(VN_ZONE).toLocalTime();
+
+            BigDecimal slotBasePricePerHour = court.getPricePerHour();
+
+            if (venue.getPricingConfig() != null) {
+                for (PricingRule rule : venue.getPricingConfig()) {
+                    if (!slotStartTimeLocal.isBefore(rule.getStartTime()) && slotStartTimeLocal.isBefore(rule.getEndTime())) {
+                        slotBasePricePerHour = rule.getPricePerHour();
+                        break;
+                    }
+                }
+            }
+
+            BigDecimal slotPrice = slotBasePricePerHour.multiply(new BigDecimal("0.5"));
+            totalAmount = totalAmount.add(slotPrice);
+
+            slotStart = slotEnd;
         }
 
-        BigDecimal hours = BigDecimal.valueOf(minutes).divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
-        BigDecimal totalAmount = pricePerHour.multiply(hours).setScale(2, RoundingMode.HALF_UP);
+        totalAmount = totalAmount.setScale(2, RoundingMode.HALF_UP);
 
-        // Create booking entity
-
-        OffsetDateTime now =  OffsetDateTime.now();
+        OffsetDateTime now = OffsetDateTime.now();
 
         Booking booking = new Booking();
         booking.setUser(user);
@@ -116,6 +142,83 @@ public class BookingService {
                 .status(saved.getStatus())
                 .build();
     }
+
+    public List<TimeSlotResponse> getAvailability(UUID courtId, LocalDate date) {
+        Court court = courtRepository.findById(courtId)
+                .orElseThrow(() -> new RuntimeException("Court not found"));
+        Venue venue = court.getVenue();
+
+        // 1. Xác định khoảng thời gian tìm kiếm (Search Window)
+        // Convert ngày được chọn (00:00 VN) sang UTC để query DB
+        // Trừ thêm 12 tiếng và cộng thêm 12 tiếng để bao trùm mọi khả năng lệch múi giờ trong DB
+        ZonedDateTime startOfDayVN = date.atStartOfDay(VN_ZONE);
+        ZonedDateTime endOfDayVN = date.plusDays(1).atStartOfDay(VN_ZONE);
+
+        OffsetDateTime searchStart = startOfDayVN.minusHours(12).toOffsetDateTime();
+        OffsetDateTime searchEnd = endOfDayVN.plusHours(12).toOffsetDateTime();
+
+        List<Booking> bookings = bookingRepository.findByCourtAndDateRange(courtId, searchStart, searchEnd);
+
+        List<TimeSlotResponse> slots = new ArrayList<>();
+
+        // Loop từ 05:00 -> 23:00 (Giờ Việt Nam)
+        LocalTime current = LocalTime.of(5, 0);
+        LocalTime closeTime = LocalTime.of(23, 0);
+
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
+
+        while (current.isBefore(closeTime)) {
+            // Force 30-Minute Interval Loop
+            LocalTime next = current.plusMinutes(30);
+
+            // Tạo Slot chuẩn theo múi giờ VN
+            ZonedDateTime slotStartZoned = date.atTime(current).atZone(VN_ZONE);
+            ZonedDateTime slotEndZoned = date.atTime(next).atZone(VN_ZONE);
+
+            // Chuyển sang Instant (Trục thời gian thực) để so sánh tuyệt đối
+            Instant sStart = slotStartZoned.toInstant();
+            Instant sEnd = slotEndZoned.toInstant();
+
+            // 2. Check Overlap (Dùng Instant để so sánh không sợ lệch offset)
+            boolean isBooked = bookings.stream().anyMatch(b -> {
+                // Bỏ qua đơn đã huỷ hoặc lỗi
+                if (b.getStatus() == BookingStatus.CANCELED || b.getStatus() == BookingStatus.FAILED) {
+                    return false;
+                }
+
+                Instant bStart = b.getStartTime().toInstant();
+                Instant bEnd = b.getEndTime().toInstant();
+
+                // Logic Giao nhau: (StartA < EndB) VÀ (EndA > StartB)
+                return sStart.isBefore(bEnd) && sEnd.isAfter(bStart);
+            });
+
+            // 3. Tính giá (Dynamic Pricing)
+            BigDecimal pricePerHour = court.getPricePerHour();
+            if (venue.getPricingConfig() != null) {
+                for (PricingRule rule : venue.getPricingConfig()) {
+                    if (!current.isBefore(rule.getStartTime()) && !next.isAfter(rule.getEndTime())) {
+                        pricePerHour = rule.getPricePerHour();
+                        break;
+                    }
+                }
+            }
+            BigDecimal slotPrice = pricePerHour.divide(BigDecimal.valueOf(2), 2, RoundingMode.HALF_UP);
+
+            slots.add(TimeSlotResponse.builder()
+                    .time(current.format(formatter))     // Trả về string "07:00"
+                    .endTime(next.format(formatter))     // Trả về string "07:30"
+                    .price(slotPrice)
+                    .status(isBooked ? "booked" : "available")
+                    .build());
+
+            current = next;
+        }
+        return slots;
+    }
+
+    // ... (Giữ nguyên các hàm getBookingDetail, applyVoucher, removeVoucher, cancelBooking bên dưới)
+    // Copy lại các hàm đó vào đây y nguyên như file cũ của bạn.
 
     public BookingDetailResponse getBookingDetail(String firebaseUid, UUID bookingId) {
         User me = userRepository.findByFirebaseUid(firebaseUid)

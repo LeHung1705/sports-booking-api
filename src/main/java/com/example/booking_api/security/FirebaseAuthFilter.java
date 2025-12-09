@@ -38,18 +38,22 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
 
         String requestPath = request.getRequestURI();
+        System.out.println("DEBUG: FirebaseAuthFilter processing " + requestPath);
 
         // ⛔ Bỏ qua các endpoint public
         if (isPublicPath(requestPath)) {
+            System.out.println("DEBUG: Skipping public path: " + requestPath);
             filterChain.doFilter(request, response);
             return;
         }
 
         try {
             String token = extractToken(request);
-
+            
             if (token != null) {
+                System.out.println("DEBUG: Token found, verifying...");
                 FirebaseToken decodedToken = FirebaseAuth.getInstance().verifyIdToken(token);
+                System.out.println("DEBUG: Token verified for UID: " + decodedToken.getUid());
 
                 String uid = decodedToken.getUid();
 
@@ -77,15 +81,20 @@ public class FirebaseAuthFilter extends OncePerRequestFilter {
 
                 auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(auth);
+                System.out.println("DEBUG: Auth set in context");
+            } else {
+                System.out.println("DEBUG: No token found in request");
             }
 
         } catch (Exception e) {
             System.err.println("❌ Token verification failed: " + e.getMessage());
+            e.printStackTrace();
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write("Invalid or expired token");
             return;
         }
-
+        
+        System.out.println("DEBUG: Proceeding down filter chain");
         filterChain.doFilter(request, response);
     }
 

@@ -18,9 +18,13 @@ import java.util.UUID;
 public class BookingController {
     private final BookingService bookingService;
     @PostMapping
-    public ResponseEntity<?> createBooking(String firebaseUid, @Valid @RequestBody BookingCreateRequest request) {
+    public ResponseEntity<?> createBooking(@AuthenticationPrincipal String firebaseUid, @Valid @RequestBody BookingCreateRequest request) {
+        System.out.println("📥 [BE] CONTROLLER RECEIVED BODY: " + request.toString());
+        System.out.println("   -> Raw StartTime: " + request.getStartTime());
+        System.out.println("   -> Raw EndTime:   " + request.getEndTime());
+        System.out.println("DEBUG CONTROLLER - User ID from Security Context: " + firebaseUid);
         try {
-            firebaseUid = "user-111";
+            // firebaseUid = "user-111"; // REMOVED HARDCODED ID
             BookingCreateResponse res = bookingService.createBooking(firebaseUid, request);
             return ResponseEntity.status(201).body(res);
 
