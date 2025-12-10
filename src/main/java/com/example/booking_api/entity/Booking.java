@@ -38,12 +38,23 @@ public class Booking {
     private BigDecimal totalAmount;
 
     @Column(precision = 15, scale = 2)
+    private BigDecimal depositAmount;
+
+    @Column(precision = 15, scale = 2)
     private BigDecimal discountAmount = BigDecimal.ZERO;
 
     @Enumerated(EnumType.STRING)
+    @Column(length = 50)
     private BookingStatus status = BookingStatus.PENDING;
 
     private String cancelReason;
+
+    private String refundBankName;
+    private String refundAccountNumber;
+    private String refundAccountName;
+    
+    @Column(precision = 15, scale = 2)
+    private BigDecimal refundAmount;
 
     @OneToOne(mappedBy = "booking", fetch = FetchType.LAZY)
     private Payment payment;
