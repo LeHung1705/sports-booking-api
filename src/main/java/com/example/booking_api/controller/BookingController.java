@@ -81,6 +81,26 @@ public class BookingController {
         }
     }
 
+    @GetMapping("/owner")
+    public ResponseEntity<?> listOwnerBookings(@AuthenticationPrincipal String firebaseUid) {
+        try {
+            List<BookingListResponse> data = bookingService.listOwnerBookings(firebaseUid);
+            return ResponseEntity.ok(data);
+        } catch (RuntimeException e) {
+             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/owner/pending")
+    public ResponseEntity<?> listOwnerPendingBookings(@AuthenticationPrincipal String firebaseUid) {
+        try {
+            List<BookingListResponse> data = bookingService.listOwnerPendingBookings(firebaseUid);
+            return ResponseEntity.ok(data);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<?> getBookingById(@AuthenticationPrincipal String firebaseUid, @PathVariable UUID id){
         try {

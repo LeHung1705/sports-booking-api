@@ -48,6 +48,7 @@ public class BookingService {
                             .id(b.getId())
                             .venue(b.getCourt().getVenue().getName())
                             .court(b.getCourt().getName())
+                            .userName(b.getUser() != null ? b.getUser().getFullName() : "Unknown")
                             .startTime(b.getStartTime())
                             .endTime(b.getEndTime())
                             .totalPrice(b.getTotalAmount())
@@ -542,5 +543,45 @@ public class BookingService {
         bookingRepository.save(booking);
 
         return getBookingDetail(firebaseUid, bookingId);
+    }
+
+    public List<BookingListResponse> listOwnerBookings(String firebaseUid) {
+        User owner = userRepository.findByFirebaseUid(firebaseUid)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<Booking> bookings = bookingRepository.findByOwner(owner.getId());
+
+        return bookings.stream()
+                .map(b -> BookingListResponse.builder()
+                        .id(b.getId())
+                        .venue(b.getCourt().getVenue().getName())
+                        .court(b.getCourt().getName())
+                        .userName(b.getUser() != null ? b.getUser().getFullName() : "Unknown")
+                        .startTime(b.getStartTime())
+                        .endTime(b.getEndTime())
+                        .totalPrice(b.getTotalAmount())
+                        .status(b.getStatus() == null ? null : b.getStatus().name())
+                        .build())
+                .toList();
+    }
+
+    public List<BookingListResponse> listOwnerPendingBookings(String firebaseUid) {
+        User owner = userRepository.findByFirebaseUid(firebaseUid)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<Booking> bookings = bookingRepository.findByOwnerAndStatus(owner.getId(), BookingStatus.AWAITING_CONFIRM);
+
+        return bookings.stream()
+                .map(b -> BookingListResponse.builder()
+                        .id(b.getId())
+                        .venue(b.getCourt().getVenue().getName())
+                        .court(b.getCourt().getName())
+                        .userName(b.getUser() != null ? b.getUser().getFullName() : "Unknown")
+                        .startTime(b.getStartTime())
+                        .endTime(b.getEndTime())
+                        .totalPrice(b.getTotalAmount())
+                        .status(b.getStatus() == null ? null : b.getStatus().name())
+                        .build())
+                .toList();
     }
 }
