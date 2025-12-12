@@ -116,6 +116,8 @@ public class AuthService {
             Map<String, Object> userInfo = new HashMap<>();
             userInfo.put("email", user.getEmail());
             userInfo.put("full_name", user.getFullName());
+            userInfo.put("phone", user.getPhone());
+            userInfo.put("role", user.getRole().name());
             userInfo.put("firebaseUid", user.getFirebaseUid());
 
             // Nên trả về role để FE biết đường phân quyền

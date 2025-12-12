@@ -43,6 +43,10 @@ public class VenueService {
                 .phone(req.getPhone())
                 .description(req.getDescription())
                 .imageUrl(req.getImageUrl())
+                .bankBin(req.getBankBin())
+                .bankName(req.getBankName())
+                .bankAccountNumber(req.getBankAccountNumber())
+                .bankAccountName(req.getBankAccountName())
                 .isActive(true)
                 .build();
         Venue saved = venueRepository.save(v);
@@ -60,6 +64,10 @@ public class VenueService {
                 .description(saved.getDescription())
                 .imageUrl(saved.getImageUrl())
                 .isActive(saved.getIsActive())
+                .bankBin(saved.getBankBin())
+                .bankName(saved.getBankName())
+                .bankAccountNumber(saved.getBankAccountNumber())
+                .bankAccountName(saved.getBankAccountName())
                 .build();
     }
 
@@ -204,6 +212,10 @@ public class VenueService {
         if (req.getLat() != null) venue.setLatitude(req.getLat());
         if (req.getLng() != null) venue.setLongitude(req.getLng());
         if (req.getImageUrl() != null) venue.setImageUrl(req.getImageUrl());
+        if (req.getBankBin() != null) venue.setBankBin(req.getBankBin());
+        if (req.getBankName() != null) venue.setBankName(req.getBankName());
+        if (req.getBankAccountNumber() != null) venue.setBankAccountNumber(req.getBankAccountNumber());
+        if (req.getBankAccountName() != null) venue.setBankAccountName(req.getBankAccountName());
 
         // Venue uses OffsetDateTime for now, assuming not refactored yet.
         // If Venue was refactored, this should be LocalDateTime.now()
@@ -227,6 +239,10 @@ public class VenueService {
                 .description(saved.getDescription())
                 .imageUrl(saved.getImageUrl())
                 .isActive(saved.getIsActive())
+                .bankBin(saved.getBankBin())
+                .bankName(saved.getBankName())
+                .bankAccountNumber(saved.getBankAccountNumber())
+                .bankAccountName(saved.getBankAccountName())
                 .build();
     }
 
