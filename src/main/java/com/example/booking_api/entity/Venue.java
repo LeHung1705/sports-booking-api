@@ -51,6 +51,18 @@ public class Venue {
     @Column(name = "image_url", length = 500)
     private String imageUrl;
 
+    @Column(name = "bank_bin")
+    private String bankBin;
+
+    @Column(name = "bank_name")
+    private String bankName;
+
+    @Column(name = "bank_account_number")
+    private String bankAccountNumber;
+
+    @Column(name = "bank_account_name")
+    private String bankAccountName;
+
     private Boolean isActive = false;
 
     @CreationTimestamp

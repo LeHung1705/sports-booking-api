@@ -82,4 +82,19 @@ public class AuthController {
                     .body(Map.of("message", "Lỗi khi đăng xuất: " + e.getMessage()));
         }
     }
-}
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword(@RequestBody ChangePasswordRequest request) {
+        try {
+            // Bây giờ nó đã nhìn thấy 'authService' vì nằm cùng trong class
+            authService.changePassword(request);
+            return ResponseEntity.ok(Map.of("message", "Đổi mật khẩu thành công"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("message", "Lỗi hệ thống: " + e.getMessage()));
+        }
+    }
+    // -----------------------------------------------------------------------
+
+} // <--- ĐÂY LÀ DẤU ĐÓNG NGOẶC CỦA CLASS (End of File)
+

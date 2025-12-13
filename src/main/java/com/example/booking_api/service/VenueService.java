@@ -43,6 +43,10 @@ public class VenueService {
                 .phone(req.getPhone())
                 .description(req.getDescription())
                 .imageUrl(req.getImageUrl())
+                .bankBin(req.getBankBin())
+                .bankName(req.getBankName())
+                .bankAccountNumber(req.getBankAccountNumber())
+                .bankAccountName(req.getBankAccountName())
                 .isActive(true)
                 .build();
         Venue saved = venueRepository.save(v);
@@ -60,9 +64,39 @@ public class VenueService {
                 .description(saved.getDescription())
                 .imageUrl(saved.getImageUrl())
                 .isActive(saved.getIsActive())
+                .bankBin(saved.getBankBin())
+                .bankName(saved.getBankName())
+                .bankAccountNumber(saved.getBankAccountNumber())
+                .bankAccountName(saved.getBankAccountName())
                 .build();
     }
+    // 👇 [BỔ SUNG HÀM NÀY]
+    public List<VenueResponse> getMyVenues(String firebaseUid) {
+        List<Venue> venues = venueRepository.findByOwner_FirebaseUid(firebaseUid);
+        return venues.stream().map(this::mapToVenueResponse).toList();
+    }
 
+    // 👇 [BỔ SUNG HÀM NÀY NẾU CHƯA CÓ]
+    private VenueResponse mapToVenueResponse(Venue venue) {
+        return VenueResponse.builder()
+                .id(venue.getId())
+                .ownerId(venue.getOwner().getId())
+                .name(venue.getName())
+                .address(venue.getAddress())
+                .district(venue.getDistrict())
+                .city(venue.getCity())
+                .lat(venue.getLatitude())
+                .lng(venue.getLongitude())
+                .phone(venue.getPhone())
+                .description(venue.getDescription())
+                .imageUrl(venue.getImageUrl())
+                .isActive(venue.getIsActive())
+                .bankBin(venue.getBankBin())
+                .bankName(venue.getBankName())
+                .bankAccountNumber(venue.getBankAccountNumber())
+                .bankAccountName(venue.getBankAccountName())
+                .build();
+    }
     // Sử dụng logic từ MAIN (Có tính năng aggregation giá min/max)
     public List<VenueListResponse> searchVenues(VenueListRequest req) {
         try {
@@ -204,6 +238,10 @@ public class VenueService {
         if (req.getLat() != null) venue.setLatitude(req.getLat());
         if (req.getLng() != null) venue.setLongitude(req.getLng());
         if (req.getImageUrl() != null) venue.setImageUrl(req.getImageUrl());
+        if (req.getBankBin() != null) venue.setBankBin(req.getBankBin());
+        if (req.getBankName() != null) venue.setBankName(req.getBankName());
+        if (req.getBankAccountNumber() != null) venue.setBankAccountNumber(req.getBankAccountNumber());
+        if (req.getBankAccountName() != null) venue.setBankAccountName(req.getBankAccountName());
 
         // Venue uses OffsetDateTime for now, assuming not refactored yet.
         // If Venue was refactored, this should be LocalDateTime.now()
@@ -227,6 +265,10 @@ public class VenueService {
                 .description(saved.getDescription())
                 .imageUrl(saved.getImageUrl())
                 .isActive(saved.getIsActive())
+                .bankBin(saved.getBankBin())
+                .bankName(saved.getBankName())
+                .bankAccountNumber(saved.getBankAccountNumber())
+                .bankAccountName(saved.getBankAccountName())
                 .build();
     }
 

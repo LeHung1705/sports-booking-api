@@ -46,8 +46,12 @@ public class BookingService {
             return bookings.stream()
                     .map(b -> BookingListResponse.builder()
                             .id(b.getId())
+                            .venue(b.getCourt().getVenue().getName())
                             .court(b.getCourt().getName())
+                            .userName(b.getUser() != null ? b.getUser().getFullName() : "Unknown")
                             .startTime(b.getStartTime())
+                            .endTime(b.getEndTime())
+                            .totalPrice(b.getTotalAmount())
                             .status(b.getStatus() == null ? null : b.getStatus().name())
                             .build())
                     .toList();
@@ -121,6 +125,20 @@ public class BookingService {
 
         totalAmount = totalAmount.setScale(2, RoundingMode.HALF_UP);
 
+        BigDecimal amountToPay;
+        BigDecimal depositAmount;
+
+        if ("DEPOSIT".equalsIgnoreCase(req.getPaymentOption())) {
+             // 30% deposit
+            depositAmount = totalAmount.multiply(new BigDecimal("0.3")).setScale(2, RoundingMode.HALF_UP);
+            amountToPay = depositAmount;
+        } else {
+            // Full payment
+            depositAmount = totalAmount; // For full payment, deposit is essentially the full amount
+            amountToPay = totalAmount;
+        }
+
+
         LocalDateTime now = LocalDateTime.now();
 
         Booking booking = new Booking();
@@ -129,7 +147,9 @@ public class BookingService {
         booking.setStartTime(start);
         booking.setEndTime(end);
         booking.setTotalAmount(totalAmount);
+        booking.setDepositAmount(depositAmount);
         booking.setDiscountAmount(BigDecimal.ZERO);
+        booking.setStatus(BookingStatus.PENDING_PAYMENT); // Set initial status to PENDING_PAYMENT
         booking.setCreatedAt(now);
         booking.setUpdatedAt(now);
 
@@ -137,7 +157,12 @@ public class BookingService {
         return BookingCreateResponse.builder()
                 .id(saved.getId())
                 .totalAmount(saved.getTotalAmount())
+                .amountToPay(amountToPay)
+                .depositAmount(saved.getDepositAmount())
                 .status(saved.getStatus())
+                .bankBin(venue.getBankBin())
+                .bankAccountNumber(venue.getBankAccountNumber())
+                .bankAccountName(venue.getBankAccountName())
                 .build();
     }
 
@@ -241,9 +266,12 @@ public class BookingService {
 
         return BookingDetailResponse.builder()
                 .id(b.getId())
+                .venue(b.getCourt().getVenue().getName())
                 .court(b.getCourt() == null ? null : b.getCourt().getName())
                 .startTime(b.getStartTime())
                 .endTime(b.getEndTime())
+                .totalPrice(b.getTotalAmount())
+                .status(b.getStatus() == null ? null : b.getStatus().name())
                 .payment(paymentDto)
                 .build();
     }
@@ -421,8 +449,27 @@ public class BookingService {
 
         LocalDateTime now = LocalDateTime.now();
         if (booking.getStartTime() != null && !now.isBefore(booking.getStartTime())) {
-            throw new RuntimeException("CANCEL_WINDOW_PASSED");
+            throw new RuntimeException("Cannot cancel past booking");
         }
+
+        // Calculate refund based on policy
+        // 1. > 6 hours: 100%
+        // 2. 2 - 6 hours: 50%
+        // 3. < 2 hours: 0%
+        long minutesUntilStart = Duration.between(now, booking.getStartTime()).toMinutes();
+        BigDecimal refundPercentage;
+
+        if (minutesUntilStart > 360) { // > 6 hours
+            refundPercentage = BigDecimal.ONE;
+        } else if (minutesUntilStart >= 120) { // 2 <= hours <= 6
+            refundPercentage = new BigDecimal("0.5");
+        } else { // < 2 hours
+            refundPercentage = BigDecimal.ZERO;
+        }
+
+        // Deposit is 30% of total amount
+        BigDecimal depositAmount = booking.getTotalAmount().multiply(new BigDecimal("0.3"));
+        BigDecimal refundAmount = depositAmount.multiply(refundPercentage).setScale(2, RoundingMode.HALF_UP);
 
         Payment payment = booking.getPayment();
         if (payment != null) {
@@ -432,9 +479,8 @@ public class BookingService {
                 throw new RuntimeException("PAYMENT_IN_PROGRESS");
             }
 
-            // Refund here
             if (paymentStatus == PaymentStatus.SUCCESS) {
-                System.out.println("NOTE: Booking canceled with SUCCESS payment - refund not implemented yet");
+                System.out.println("NOTE: Booking canceled. Refund amount calculated: " + refundAmount);
             }
         }
 
@@ -444,6 +490,98 @@ public class BookingService {
 
         bookingRepository.save(booking);
 
-        return new BookingCancelResponse(booking.getStatus());
+        return BookingCancelResponse.builder()
+                .status(booking.getStatus())
+                .refundAmount(refundAmount)
+                .build();
+    }
+
+    @Transactional
+    public BookingDetailResponse markAsPaid(String firebaseUid, UUID bookingId, BookingMarkPaidRequest req) {
+        User me = userRepository.findByFirebaseUid(firebaseUid).orElseThrow(() -> new RuntimeException("User not found"));
+        Booking booking = bookingRepository.findById(bookingId).orElseThrow(() -> new RuntimeException("Booking not found"));
+
+        if (!booking.getUser().getId().equals(me.getId())) {
+            throw new SecurityException("FORBIDDEN");
+        }
+
+        if (booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
+            throw new RuntimeException("INVALID_STATUS: Can only mark as paid if status is PENDING_PAYMENT");
+        }
+
+        booking.setStatus(BookingStatus.AWAITING_CONFIRM);
+        
+        if (req != null) {
+            booking.setRefundBankName(req.getRefundBankName());
+            booking.setRefundAccountNumber(req.getRefundAccountNumber());
+            booking.setRefundAccountName(req.getRefundAccountName());
+        }
+        
+        booking.setUpdatedAt(LocalDateTime.now());
+        bookingRepository.save(booking);
+
+        return getBookingDetail(firebaseUid, bookingId);
+    }
+
+    @Transactional
+    public BookingDetailResponse confirmPayment(String firebaseUid, UUID bookingId) {
+        User me = userRepository.findByFirebaseUid(firebaseUid).orElseThrow(() -> new RuntimeException("User not found"));
+        Booking booking = bookingRepository.findById(bookingId).orElseThrow(() -> new RuntimeException("Booking not found"));
+
+        // Check if user is the owner of the venue
+        UUID ownerId = booking.getCourt().getVenue().getOwner().getId();
+        if (!ownerId.equals(me.getId())) {
+            throw new SecurityException("FORBIDDEN: Only venue owner can confirm payment");
+        }
+
+        if (booking.getStatus() != BookingStatus.AWAITING_CONFIRM) {
+            throw new RuntimeException("INVALID_STATUS: Can only confirm payment if status is AWAITING_CONFIRM");
+        }
+
+        booking.setStatus(BookingStatus.CONFIRMED);
+        booking.setUpdatedAt(LocalDateTime.now());
+        bookingRepository.save(booking);
+
+        return getBookingDetail(firebaseUid, bookingId);
+    }
+
+    public List<BookingListResponse> listOwnerBookings(String firebaseUid) {
+        User owner = userRepository.findByFirebaseUid(firebaseUid)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<Booking> bookings = bookingRepository.findByOwner(owner.getId());
+
+        return bookings.stream()
+                .map(b -> BookingListResponse.builder()
+                        .id(b.getId())
+                        .venue(b.getCourt().getVenue().getName())
+                        .court(b.getCourt().getName())
+                        .userName(b.getUser() != null ? b.getUser().getFullName() : "Unknown")
+                        .startTime(b.getStartTime())
+                        .endTime(b.getEndTime())
+                        .totalPrice(b.getTotalAmount())
+                        .status(b.getStatus() == null ? null : b.getStatus().name())
+                        .build())
+                .toList();
+    }
+
+    public List<BookingListResponse> listOwnerPendingBookings(String firebaseUid) {
+        User owner = userRepository.findByFirebaseUid(firebaseUid)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<Booking> bookings = bookingRepository.findByOwnerAndStatus(owner.getId(), BookingStatus.AWAITING_CONFIRM);
+
+        return bookings.stream()
+                .map(b -> BookingListResponse.builder()
+                        .id(b.getId())
+                        .venue(b.getCourt().getVenue().getName())
+                        .court(b.getCourt().getName())
+                        .userName(b.getUser() != null ? b.getUser().getFullName() : "Unknown")
+                        .startTime(b.getStartTime())
+                        .endTime(b.getEndTime())
+                        .totalPrice(b.getTotalAmount())
+                        .status(b.getStatus() == null ? null : b.getStatus().name())
+                        .build())
+                .toList();
     }
 }

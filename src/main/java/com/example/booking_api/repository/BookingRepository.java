@@ -77,4 +77,25 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
             @Param("startTime") LocalDateTime startTime,
             @Param("endTime") LocalDateTime endTime
     );
+
+    @Query("""
+        SELECT b
+        FROM Booking b
+        JOIN FETCH b.court c
+        JOIN FETCH c.venue v
+        WHERE v.owner.id = :ownerId
+        ORDER BY b.startTime DESC
+    """)
+    List<Booking> findByOwner(@Param("ownerId") UUID ownerId);
+
+    @Query("""
+        SELECT b
+        FROM Booking b
+        JOIN FETCH b.court c
+        JOIN FETCH c.venue v
+        WHERE v.owner.id = :ownerId
+          AND b.status = :status
+        ORDER BY b.startTime ASC
+    """)
+    List<Booking> findByOwnerAndStatus(@Param("ownerId") UUID ownerId, @Param("status") BookingStatus status);
 }

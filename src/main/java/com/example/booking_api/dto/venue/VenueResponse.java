@@ -19,4 +19,9 @@ public class VenueResponse {
     private String description;
     private String imageUrl;
     private Boolean isActive;
+    
+    private String bankBin;
+    private String bankName;
+    private String bankAccountNumber;
+    private String bankAccountName;
 }
