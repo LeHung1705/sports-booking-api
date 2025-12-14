@@ -24,7 +24,6 @@ public class BookingController {
         System.out.println("   -> Raw EndTime:   " + request.getEndTime());
         System.out.println("DEBUG CONTROLLER - User ID from Security Context: " + firebaseUid);
         try {
-            // firebaseUid = "user-111"; // REMOVED HARDCODED ID
             BookingCreateResponse res = bookingService.createBooking(firebaseUid, request);
             return ResponseEntity.status(201).body(res);
 

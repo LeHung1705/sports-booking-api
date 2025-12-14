@@ -6,6 +6,7 @@ import com.example.booking_api.service.VenueService;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +21,7 @@ import java.util.UUID;
 public class VenueController {
     private final VenueService venueService;
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     @PostMapping
     public ResponseEntity<?> createVenue(@AuthenticationPrincipal String firebaseUid, @Valid @RequestBody VenueCreateRequest request) {
         try {
@@ -48,7 +50,7 @@ public class VenueController {
             List<VenueListResponse> venues = venueService.searchVenues(request);
             return ResponseEntity.ok(venues);
         } catch (RuntimeException e) {
-            e.printStackTrace(); // Print stack trace to see the error
+            e.printStackTrace();
             return ResponseEntity.status(500).body(Map.of("message", "Query error"));
         }
     }
@@ -78,6 +80,7 @@ public class VenueController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     @PutMapping("/{id}")
     public ResponseEntity<?> updateVenue(@AuthenticationPrincipal String firebaseUid, @PathVariable UUID id, @Valid @RequestBody VenueUpdateRequest request) {
         try {
@@ -108,6 +111,7 @@ public class VenueController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteVenue(@AuthenticationPrincipal String firebaseUid, @PathVariable UUID id) {
         try {
