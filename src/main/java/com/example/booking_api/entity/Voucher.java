@@ -4,6 +4,7 @@ package com.example.booking_api.entity;
 import com.example.booking_api.entity.enums.VoucherType;
 import jakarta.persistence.*;
 import lombok.Data;
+import java.util.List; // Thêm import List
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -50,4 +51,12 @@ public class Voucher {
 
     @Column(nullable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
+    @ManyToMany
+    @JoinTable(
+            name = "voucher_venues",
+            joinColumns = @JoinColumn(name = "voucher_id"),
+            inverseJoinColumns = @JoinColumn(name = "venue_id")
+    )
+    private List<Venue> venues;
 }
+

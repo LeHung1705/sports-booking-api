@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/v1/owner/vouchers") // 👈 đổi prefix
+@RequestMapping("api/v1/owner/vouchers") // 👈 đổi prefix
 @RequiredArgsConstructor
 public class OwnerVoucherController {
 
