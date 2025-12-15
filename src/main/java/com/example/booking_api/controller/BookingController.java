@@ -24,7 +24,6 @@ public class BookingController {
         System.out.println("   -> Raw EndTime:   " + request.getEndTime());
         System.out.println("DEBUG CONTROLLER - User ID from Security Context: " + firebaseUid);
         try {
-            // firebaseUid = "user-111"; // REMOVED HARDCODED ID
             BookingCreateResponse res = bookingService.createBooking(firebaseUid, request);
             return ResponseEntity.status(201).body(res);
 
@@ -79,6 +78,26 @@ public class BookingController {
             return ResponseEntity.badRequest().body(Map.of(
                     "message", msg
             ));
+        }
+    }
+
+    @GetMapping("/owner")
+    public ResponseEntity<?> listOwnerBookings(@AuthenticationPrincipal String firebaseUid) {
+        try {
+            List<BookingListResponse> data = bookingService.listOwnerBookings(firebaseUid);
+            return ResponseEntity.ok(data);
+        } catch (RuntimeException e) {
+             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/owner/pending")
+    public ResponseEntity<?> listOwnerPendingBookings(@AuthenticationPrincipal String firebaseUid) {
+        try {
+            List<BookingListResponse> data = bookingService.listOwnerPendingBookings(firebaseUid);
+            return ResponseEntity.ok(data);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
 
@@ -242,6 +261,30 @@ public class BookingController {
             return ResponseEntity.badRequest().body(Map.of(
                     "message", msg
             ));
+        }
+    }
+
+    @PutMapping("/{id}/mark-paid")
+    public ResponseEntity<?> markBookingAsPaid(@AuthenticationPrincipal String firebaseUid, @PathVariable UUID id, @RequestBody(required = false) BookingMarkPaidRequest request) {
+        try {
+            BookingDetailResponse res = bookingService.markAsPaid(firebaseUid, id, request);
+            return ResponseEntity.ok(res);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(403).body(Map.of("message", "Forbidden"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/{id}/confirm-payment")
+    public ResponseEntity<?> confirmPayment(@AuthenticationPrincipal String firebaseUid, @PathVariable UUID id) {
+        try {
+            BookingDetailResponse res = bookingService.confirmPayment(firebaseUid, id);
+            return ResponseEntity.ok(res);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(403).body(Map.of("message", "Forbidden"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
 }

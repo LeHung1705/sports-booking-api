@@ -49,4 +49,16 @@ public class VenueCreateRequest {
 //    )
     private String imageUrl;
 
+    @Size(max = 20, message = "Mã BIN ngân hàng tối đa 20 ký tự")
+    private String bankBin;
+
+    @Size(max = 100, message = "Tên ngân hàng tối đa 100 ký tự")
+    private String bankName;
+
+    @Size(max = 50, message = "Số tài khoản tối đa 50 ký tự")
+    private String bankAccountNumber;
+
+    @Size(max = 100, message = "Tên chủ tài khoản tối đa 100 ký tự")
+    private String bankAccountName;
+
 }

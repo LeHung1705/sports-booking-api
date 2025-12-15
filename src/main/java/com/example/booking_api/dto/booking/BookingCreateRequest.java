@@ -26,6 +26,9 @@ public class BookingCreateRequest {
     private LocalDateTime endTime;
 
 
+    @JsonProperty("payment_option")
+    private String paymentOption; // "DEPOSIT" or "FULL_PAYMENT"
+
     @AssertTrue(message = "start_time must be before end_time")
     public boolean isValidTimeRange() {
         if (startTime == null || endTime == null) return true;

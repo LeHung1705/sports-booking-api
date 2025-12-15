@@ -11,9 +11,12 @@ import java.util.UUID;
 @Builder
 public class BookingDetailResponse {
     private UUID id;
+    private String venue;
     private String court;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
+    private BigDecimal totalPrice;
+    private String status;
     private PaymentItem payment;
 
     @Builder
