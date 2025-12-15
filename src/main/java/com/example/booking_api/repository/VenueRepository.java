@@ -53,4 +53,6 @@ public interface VenueRepository extends JpaRepository<Venue, UUID> {
     Optional<Venue> findWithCourtsById(UUID id);
     // 👇 [BỔ SUNG VÀO ĐÂY]
     List<Venue> findByOwner_FirebaseUid(String firebaseUid);
+
+    List<Venue> findByIsActiveFalse();
 }
