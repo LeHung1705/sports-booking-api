@@ -50,4 +50,6 @@ public interface VenueRepository extends JpaRepository<Venue, UUID> {
 
     @EntityGraph(attributePaths = {"courts"})
     Optional<Venue> findWithCourtsById(UUID id);
+
+    List<Venue> findByIsActiveFalse();
 }
