@@ -13,6 +13,7 @@ public class BookingListResponse {
     private UUID id;
     private String venue;
     private String court;
+    private UUID userId;
     private String userName; // New field
     private LocalDateTime startTime;
     private LocalDateTime endTime;

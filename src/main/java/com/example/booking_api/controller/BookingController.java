@@ -8,9 +8,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.format.annotation.DateTimeFormat;
 
 @RestController
 @RequestMapping("/api/v1/bookings")
@@ -82,9 +84,9 @@ public class BookingController {
     }
 
     @GetMapping("/owner")
-    public ResponseEntity<?> listOwnerBookings(@AuthenticationPrincipal String firebaseUid) {
+    public ResponseEntity<?> listOwnerBookings(@AuthenticationPrincipal String firebaseUid, BookingListRequest request) {
         try {
-            List<BookingListResponse> data = bookingService.listOwnerBookings(firebaseUid);
+            List<BookingListResponse> data = bookingService.listOwnerBookings(firebaseUid, request);
             return ResponseEntity.ok(data);
         } catch (RuntimeException e) {
              return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
@@ -95,6 +97,20 @@ public class BookingController {
     public ResponseEntity<?> listOwnerPendingBookings(@AuthenticationPrincipal String firebaseUid) {
         try {
             List<BookingListResponse> data = bookingService.listOwnerPendingBookings(firebaseUid);
+            return ResponseEntity.ok(data);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/owner/revenue-stats")
+    public ResponseEntity<?> getRevenueStats(
+            @AuthenticationPrincipal String firebaseUid,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to
+    ) {
+        try {
+            List<Map<String, Object>> data = bookingService.getRevenueStats(firebaseUid, from, to);
             return ResponseEntity.ok(data);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));

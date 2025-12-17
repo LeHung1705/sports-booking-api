@@ -11,6 +11,10 @@ public class BookingListRequest {
 
     private BookingStatus status;
 
+    private java.util.List<BookingStatus> statuses;
+
+    private java.util.UUID venueId;
+
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
     private LocalDateTime from;
 

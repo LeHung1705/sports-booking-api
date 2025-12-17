@@ -55,4 +55,6 @@ public interface VenueRepository extends JpaRepository<Venue, UUID> {
     List<Venue> findByOwner_FirebaseUid(String firebaseUid);
 
     List<Venue> findByIsActiveFalse();
+
+    long countByIsActiveFalse();
 }

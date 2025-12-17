@@ -81,4 +81,16 @@ public class AdminController {
             return ResponseEntity.badRequest().body("Failed: " + e.getMessage());
         }
     }
+
+    // PUT /admin/users/{id}/degrade
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/users/{id}/degrade")
+    public ResponseEntity<?> degradeUser(@PathVariable String id) {
+        try {
+            adminService.updateUserRole(id, UserRole.USER);
+            return ResponseEntity.ok("Owner degraded to USER");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Failed: " + e.getMessage());
+        }
+    }
 }

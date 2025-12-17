@@ -36,9 +36,14 @@ public class BookingService {
             User user = userRepository.findByFirebaseUid(firebaseUid)
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
+            List<BookingStatus> filterStatuses = req.getStatuses();
+            if ((filterStatuses == null || filterStatuses.isEmpty()) && req.getStatus() != null) {
+                filterStatuses = List.of(req.getStatus());
+            }
+
             List<Booking> bookings = bookingRepository.findByUserWithFilter(
                     user.getId(),
-                    req.getStatus(),
+                    filterStatuses,
                     req.getFrom(),
                     req.getTo()
             );
@@ -48,6 +53,7 @@ public class BookingService {
                             .id(b.getId())
                             .venue(b.getCourt().getVenue().getName())
                             .court(b.getCourt().getName())
+                            .userId(b.getUser() != null ? b.getUser().getId() : null)
                             .userName(b.getUser() != null ? b.getUser().getFullName() : "Unknown")
                             .startTime(b.getStartTime())
                             .endTime(b.getEndTime())
@@ -545,17 +551,29 @@ public class BookingService {
         return getBookingDetail(firebaseUid, bookingId);
     }
 
-    public List<BookingListResponse> listOwnerBookings(String firebaseUid) {
+    public List<BookingListResponse> listOwnerBookings(String firebaseUid, BookingListRequest req) {
         User owner = userRepository.findByFirebaseUid(firebaseUid)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        List<Booking> bookings = bookingRepository.findByOwner(owner.getId());
+        List<BookingStatus> filterStatuses = req.getStatuses();
+        if ((filterStatuses == null || filterStatuses.isEmpty()) && req.getStatus() != null) {
+            filterStatuses = List.of(req.getStatus());
+        }
+
+        List<Booking> bookings = bookingRepository.findByOwnerWithFilter(
+                owner.getId(),
+                req.getVenueId(),
+                filterStatuses,
+                req.getFrom(),
+                req.getTo()
+        );
 
         return bookings.stream()
                 .map(b -> BookingListResponse.builder()
                         .id(b.getId())
                         .venue(b.getCourt().getVenue().getName())
                         .court(b.getCourt().getName())
+                        .userId(b.getUser() != null ? b.getUser().getId() : null)
                         .userName(b.getUser() != null ? b.getUser().getFullName() : "Unknown")
                         .startTime(b.getStartTime())
                         .endTime(b.getEndTime())
@@ -576,6 +594,7 @@ public class BookingService {
                         .id(b.getId())
                         .venue(b.getCourt().getVenue().getName())
                         .court(b.getCourt().getName())
+                        .userId(b.getUser() != null ? b.getUser().getId() : null)
                         .userName(b.getUser() != null ? b.getUser().getFullName() : "Unknown")
                         .startTime(b.getStartTime())
                         .endTime(b.getEndTime())
@@ -583,5 +602,62 @@ public class BookingService {
                         .status(b.getStatus() == null ? null : b.getStatus().name())
                         .build())
                 .toList();
+    }
+
+    public List<java.util.Map<String, Object>> getRevenueStats(String firebaseUid, LocalDateTime from, LocalDateTime to) {
+        User owner = userRepository.findByFirebaseUid(firebaseUid)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        System.out.println("DEBUG REVENUE STATS:");
+        System.out.println("  Owner: " + owner.getEmail());
+        System.out.println("  From: " + from);
+        System.out.println("  To: " + to);
+
+        List<BookingStatus> statuses = List.of(BookingStatus.CONFIRMED, BookingStatus.COMPLETED);
+        List<Booking> bookings = bookingRepository.findByOwnerWithFilter(
+                owner.getId(),
+                null,
+                statuses,
+                from,
+                to
+        );
+
+        System.out.println("  Found bookings: " + bookings.size());
+
+        // Aggregate by date
+        java.util.Map<LocalDate, BigDecimal> dailyRevenue = new java.util.TreeMap<>();
+        java.util.Map<LocalDate, Integer> dailyCount = new java.util.TreeMap<>();
+
+        for (Booking b : bookings) {
+            LocalDate date = b.getStartTime().toLocalDate();
+            dailyRevenue.put(date, dailyRevenue.getOrDefault(date, BigDecimal.ZERO).add(b.getTotalAmount()));
+            dailyCount.put(date, dailyCount.getOrDefault(date, 0) + 1);
+        }
+
+        List<java.util.Map<String, Object>> result = new ArrayList<>();
+        DateTimeFormatter formatter = DateTimeFormatter.ISO_LOCAL_DATE;
+
+        if (from != null && to != null) {
+            LocalDate start = from.toLocalDate();
+            LocalDate end = to.toLocalDate();
+            // Loop ensuring we cover the whole range including start and end
+            for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+                result.add(java.util.Map.of(
+                        "date", date.format(formatter),
+                        "value", dailyRevenue.getOrDefault(date, BigDecimal.ZERO),
+                        "count", dailyCount.getOrDefault(date, 0)
+                ));
+            }
+        } else {
+            dailyRevenue.forEach((date, amount) -> {
+                result.add(java.util.Map.of(
+                        "date", date.format(formatter),
+                        "value", amount,
+                        "count", dailyCount.getOrDefault(date, 0)
+                ));
+            });
+        }
+
+        return result;
     }
 }

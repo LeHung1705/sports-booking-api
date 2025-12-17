@@ -17,14 +17,14 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         FROM Booking b
         JOIN FETCH b.court c
         WHERE b.user.id = :userId
-          AND (:status IS NULL OR b.status = :status)
+          AND (:statuses IS NULL OR b.status IN :statuses)
           AND (:from IS NULL OR b.startTime >= :from)
           AND (:to IS NULL OR b.startTime <= :to)
         ORDER BY b.startTime DESC
     """)
     List<Booking> findByUserWithFilter(
             @Param("userId") UUID userId,
-            @Param("status") BookingStatus status,
+            @Param("statuses") List<BookingStatus> statuses,
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to
     );
@@ -98,4 +98,24 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
         ORDER BY b.startTime ASC
     """)
     List<Booking> findByOwnerAndStatus(@Param("ownerId") UUID ownerId, @Param("status") BookingStatus status);
+
+    @Query("""
+        SELECT b
+        FROM Booking b
+        JOIN FETCH b.court c
+        JOIN FETCH c.venue v
+        WHERE v.owner.id = :ownerId
+          AND (:venueId IS NULL OR v.id = :venueId)
+          AND (:statuses IS NULL OR b.status IN :statuses)
+          AND (:from IS NULL OR b.startTime >= :from)
+          AND (:to IS NULL OR b.startTime <= :to)
+        ORDER BY b.startTime DESC
+    """)
+    List<Booking> findByOwnerWithFilter(
+            @Param("ownerId") UUID ownerId,
+            @Param("venueId") UUID venueId,
+            @Param("statuses") List<BookingStatus> statuses,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to
+    );
 }
