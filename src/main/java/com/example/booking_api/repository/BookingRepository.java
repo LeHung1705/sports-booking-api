@@ -118,4 +118,6 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to
     );
+
+    List<Booking> findByStatusAndCreatedAtBefore(BookingStatus status, LocalDateTime createdAt);
 }

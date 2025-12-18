@@ -15,9 +15,17 @@ public class BookingDetailResponse {
     private String court;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
+    private LocalDateTime createdAt;
     private BigDecimal totalPrice;
+    private BigDecimal discountAmount;
+    private String voucherCode;
     private String status;
     private PaymentItem payment;
+
+    // Venue Bank Info
+    private String bankBin;
+    private String bankAccountNumber;
+    private String bankAccountName;
 
     // Refund Info
     private BigDecimal refundAmount;

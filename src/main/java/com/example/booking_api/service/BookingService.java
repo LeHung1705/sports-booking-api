@@ -273,15 +273,28 @@ public class BookingService {
                     .build();
         }
 
+        // Check for voucher redemption
+        String voucherCode = null;
+        VoucherRedemption redemption = voucherRedemptionRepository.findByBooking_Id(b.getId()).orElse(null);
+        if (redemption != null && redemption.getVoucher() != null) {
+            voucherCode = redemption.getVoucher().getCode();
+        }
+
         return BookingDetailResponse.builder()
                 .id(b.getId())
                 .venue(b.getCourt().getVenue().getName())
                 .court(b.getCourt() == null ? null : b.getCourt().getName())
                 .startTime(b.getStartTime())
                 .endTime(b.getEndTime())
+                .createdAt(b.getCreatedAt())
                 .totalPrice(b.getTotalAmount())
+                .discountAmount(b.getDiscountAmount())
+                .voucherCode(voucherCode) // Set the voucher code here
                 .status(b.getStatus() == null ? null : b.getStatus().name())
                 .payment(paymentDto)
+                .bankBin(b.getCourt().getVenue().getBankBin())
+                .bankAccountNumber(b.getCourt().getVenue().getBankAccountNumber())
+                .bankAccountName(b.getCourt().getVenue().getBankAccountName())
                 .refundAmount(b.getRefundAmount())
                 .refundBankName(b.getRefundBankName())
                 .refundAccountNumber(b.getRefundAccountNumber())
@@ -298,7 +311,7 @@ public class BookingService {
             throw new SecurityException("FORBIDDEN");
         }
 
-        if (booking.getStatus() != BookingStatus.PENDING) {
+        if (booking.getStatus() != BookingStatus.PENDING && booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
             throw new RuntimeException("BOOKING_STATUS_NOT_ALLOWED");
         }
 
@@ -702,8 +715,30 @@ public class BookingService {
                         "count", dailyCount.getOrDefault(date, 0)
                 ));
             });
+                }
+                
+                return result;
+            }
+        
+            @Transactional
+            public BookingDetailResponse declineBooking(String firebaseUid, UUID bookingId) {
+                User me = userRepository.findByFirebaseUid(firebaseUid).orElseThrow(() -> new RuntimeException("User not found"));
+                Booking booking = bookingRepository.findById(bookingId).orElseThrow(() -> new RuntimeException("Booking not found"));
+        
+                UUID ownerId = booking.getCourt().getVenue().getOwner().getId();
+                if (!ownerId.equals(me.getId())) {
+                    throw new SecurityException("FORBIDDEN: Only venue owner can decline booking");
+                }
+        
+                if (booking.getStatus() != BookingStatus.AWAITING_CONFIRM && booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
+                    throw new RuntimeException("INVALID_STATUS: Can only decline if status is AWAITING_CONFIRM or PENDING_PAYMENT");
+                }
+        
+                booking.setStatus(BookingStatus.CANCELED);
+                booking.setCancelReason("Owner declined payment/booking");
+                booking.setUpdatedAt(LocalDateTime.now());
+                bookingRepository.save(booking);
+        
+                return getBookingDetail(firebaseUid, bookingId);
+            }
         }
-
-        return result;
-    }
-}

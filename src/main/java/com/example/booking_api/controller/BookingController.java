@@ -313,4 +313,16 @@ public class BookingController {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
+
+    @PutMapping("/{id}/decline")
+    public ResponseEntity<?> declineBooking(@AuthenticationPrincipal String firebaseUid, @PathVariable UUID id) {
+        try {
+            BookingDetailResponse res = bookingService.declineBooking(firebaseUid, id);
+            return ResponseEntity.ok(res);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(403).body(Map.of("message", "Forbidden"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
 }
