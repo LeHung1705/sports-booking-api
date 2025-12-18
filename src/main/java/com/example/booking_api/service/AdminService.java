@@ -1,8 +1,10 @@
 package com.example.booking_api.service;
 
 import com.example.booking_api.dto.user.UserListResponse;
+import com.example.booking_api.entity.Venue;
 import com.example.booking_api.entity.enums.UserRole;
 import com.example.booking_api.repository.UserRepository;
+import com.example.booking_api.repository.VenueRepository;
 import com.google.firebase.auth.ExportedUserRecord;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.ListUsersPage;
@@ -10,14 +12,36 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class AdminService {
 
     private final UserRepository userRepository;
+    private final VenueRepository venueRepository;
+
+    public Map<String, Long> getStats() {
+        Map<String, Long> stats = new HashMap<>();
+        stats.put("totalUsers", userRepository.count());
+        stats.put("totalVenues", venueRepository.count());
+        // stats.put("pendingVenues", venueRepository.countByIsActiveFalse()); // If we added count method
+        return stats;
+    }
+
+    public void approveVenue(UUID venueId) {
+        Venue venue = venueRepository.findById(venueId)
+                .orElseThrow(() -> new RuntimeException("Venue not found"));
+        venue.setIsActive(true);
+        venueRepository.save(venue);
+    }
+
+    public List<Venue> getPendingVenues() {
+        return venueRepository.findByIsActiveFalse();
+    }
 
     public void updateUserRole(String firebaseUid, UserRole newRole) throws Exception {
 

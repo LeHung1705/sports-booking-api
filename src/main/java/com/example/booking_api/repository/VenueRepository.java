@@ -15,6 +15,7 @@ import java.util.UUID;
 
 @Repository
 public interface VenueRepository extends JpaRepository<Venue, UUID> {
+
     @Query(value = """
         SELECT DISTINCT v.id
         FROM venues v
@@ -50,4 +51,8 @@ public interface VenueRepository extends JpaRepository<Venue, UUID> {
 
     @EntityGraph(attributePaths = {"courts"})
     Optional<Venue> findWithCourtsById(UUID id);
+    // 👇 [BỔ SUNG VÀO ĐÂY]
+    List<Venue> findByOwner_FirebaseUid(String firebaseUid);
+
+    List<Venue> findByIsActiveFalse();
 }

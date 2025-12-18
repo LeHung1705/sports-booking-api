@@ -79,6 +79,16 @@ public class VenueController {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
+    // 👇 [BỔ SUNG HÀM NÀY]
+    @GetMapping("/my-venues")
+    public ResponseEntity<?> getMyVenues(@AuthenticationPrincipal String firebaseUid) {
+        try {
+            List<VenueResponse> venues = venueService.getMyVenues(firebaseUid);
+            return ResponseEntity.ok(venues);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Lỗi: " + e.getMessage()));
+        }
+    }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     @PutMapping("/{id}")

@@ -2,6 +2,7 @@
 package com.example.booking_api.controller.owner;
 
 import com.example.booking_api.dto.voucher.VoucherRequest;
+import com.example.booking_api.dto.voucher.VoucherResponse;
 import com.example.booking_api.entity.Voucher;
 import com.example.booking_api.service.VoucherService;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +16,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/v1/owner/vouchers") // 👈 đổi prefix
+@RequestMapping("/api/v1/owner/vouchers") // 👈 đổi prefix
 @RequiredArgsConstructor
 public class OwnerVoucherController {
 
@@ -40,7 +41,8 @@ public class OwnerVoucherController {
 
     @PreAuthorize("hasRole('OWNER')")
     @GetMapping
-    public ResponseEntity<List<Voucher>> listMine() {
+    // 👇 [SỬA ĐỔI] Đổi kiểu trả về thành List<VoucherResponse>
+    public ResponseEntity<List<VoucherResponse>> listMine() {
         return ResponseEntity.ok(voucherService.listByOwner(currentUid()));
     }
 

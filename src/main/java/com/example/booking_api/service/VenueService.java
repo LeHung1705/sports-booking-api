@@ -70,7 +70,33 @@ public class VenueService {
                 .bankAccountName(saved.getBankAccountName())
                 .build();
     }
+    // 👇 [BỔ SUNG HÀM NÀY]
+    public List<VenueResponse> getMyVenues(String firebaseUid) {
+        List<Venue> venues = venueRepository.findByOwner_FirebaseUid(firebaseUid);
+        return venues.stream().map(this::mapToVenueResponse).toList();
+    }
 
+    // 👇 [BỔ SUNG HÀM NÀY NẾU CHƯA CÓ]
+    private VenueResponse mapToVenueResponse(Venue venue) {
+        return VenueResponse.builder()
+                .id(venue.getId())
+                .ownerId(venue.getOwner().getId())
+                .name(venue.getName())
+                .address(venue.getAddress())
+                .district(venue.getDistrict())
+                .city(venue.getCity())
+                .lat(venue.getLatitude())
+                .lng(venue.getLongitude())
+                .phone(venue.getPhone())
+                .description(venue.getDescription())
+                .imageUrl(venue.getImageUrl())
+                .isActive(venue.getIsActive())
+                .bankBin(venue.getBankBin())
+                .bankName(venue.getBankName())
+                .bankAccountNumber(venue.getBankAccountNumber())
+                .bankAccountName(venue.getBankAccountName())
+                .build();
+    }
     // Sử dụng logic từ MAIN (Có tính năng aggregation giá min/max)
     public List<VenueListResponse> searchVenues(VenueListRequest req) {
         try {

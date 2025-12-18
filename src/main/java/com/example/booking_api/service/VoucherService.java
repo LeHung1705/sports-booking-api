@@ -61,6 +61,19 @@ public class VoucherService {
         v.setValidTo(req.getValidTo());
         v.setUsageLimit(req.getUsageLimit());
         v.setActive(Optional.ofNullable(req.getActive()).orElse(Boolean.TRUE));
+        // 👇 [BỔ SUNG MỚI] Logic lưu danh sách Venue áp dụng
+        if (req.getVenueIds() != null && !req.getVenueIds().isEmpty()) {
+            // Tìm các venue theo list ID
+            List<Venue> selectedVenues = venueRepository.findAllById(req.getVenueIds());
+
+            // Lọc lại: Chỉ lấy những venue thực sự thuộc về owner này (để bảo mật)
+            List<Venue> ownedVenues = selectedVenues.stream()
+                    .filter(venue -> venue.getOwner().getId().equals(owner.getId()))
+                    .toList();
+
+            v.setVenues(ownedVenues);
+        }
+        // 👆 [HẾT PHẦN BỔ SUNG]
         return voucherRepository.save(v);
     }
 
@@ -89,14 +102,39 @@ public class VoucherService {
         if (req.getValidTo() != null) v.setValidTo(req.getValidTo());
         if (req.getUsageLimit() != null) v.setUsageLimit(req.getUsageLimit());
         if (req.getActive() != null) v.setActive(req.getActive());
-
+// 👇 [BỔ SUNG MỚI] Logic cập nhật danh sách Venue khi update voucher
+        if (req.getVenueIds() != null) { // Nếu gửi lên list rỗng -> Xóa hết venue áp dụng
+            List<Venue> selectedVenues = venueRepository.findAllById(req.getVenueIds());
+            List<Venue> ownedVenues = selectedVenues.stream()
+                    .filter(venue -> venue.getOwner().getId().equals(owner.getId()))
+                    .toList();
+            v.setVenues(ownedVenues);
+        }
+        // 👆 [HẾT PHẦN BỔ SUNG]
         return voucherRepository.save(v);
     }
-
-    public List<Voucher> listByOwner(String firebaseUid) {
+    // 👇 [SỬA ĐỔI QUAN TRỌNG] Thay đổi kiểu trả về từ List<Voucher> thành List<VoucherResponse>
+    // Để cắt đứt vòng lặp vô tận khi chuyển sang JSON
+    public List<VoucherResponse> listByOwner(String firebaseUid) {
         User owner = userRepository.findByFirebaseUid(firebaseUid)
                 .orElseThrow(() -> new IllegalArgumentException("Owner not found"));
-        return voucherRepository.findAllByOwner_Id(owner.getId());
+
+        List<Voucher> vouchers = voucherRepository.findAllByOwner_Id(owner.getId());
+
+        // Map từ Entity sang DTO
+        return vouchers.stream().map(v -> VoucherResponse.builder()
+                .id(v.getId())
+                .code(v.getCode())
+                .type(v.getType())
+                .value(v.getValue())
+                .minOrderAmount(v.getMinOrderAmount())
+                .validFrom(v.getValidFrom())
+                .validTo(v.getValidTo())
+                .usageLimit(v.getUsageLimit())
+                .usedCount(v.getUsedCount())
+                .active(v.getActive())
+                .build()
+        ).toList();
     }
 
     @Transactional
@@ -136,22 +174,32 @@ public class VoucherService {
             return new PreviewResponse(false, BigDecimal.ZERO, "Usage limit reached");
         }
 
-        // 👇 NEW: bắt buộc có venueId để check owner
+        // 👇 [SỬA ĐỔI QUAN TRỌNG] Kiểm tra xem Voucher có áp dụng cho Venue này không
         if (req.getVenueId() == null) {
-            return new PreviewResponse(false, BigDecimal.ZERO, "Voucher không hợp lệ");
+            return new PreviewResponse(false, BigDecimal.ZERO, "Voucher không hợp lệ (thiếu venueId)");
         }
-        Venue venue = venueRepository.findById(req.getVenueId())
-                .orElse(null);
-        if (venue == null) {
-            return new PreviewResponse(false, BigDecimal.ZERO, "Voucher không hợp lệ");
+
+        boolean isApplicable = false;
+
+        // Trường hợp 1: Voucher không gán cụ thể Venue nào -> Mặc định áp dụng cho tất cả Venue CỦA CHỦ VOUCHER ĐÓ
+        if (v.getVenues() == null || v.getVenues().isEmpty()) {
+            Venue venue = venueRepository.findById(req.getVenueId()).orElse(null);
+            // Nếu venue tồn tại VÀ chủ của venue trùng với chủ của voucher -> Hợp lệ
+            if (venue != null && v.getOwner() != null && venue.getOwner().getId().equals(v.getOwner().getId())) {
+                isApplicable = true;
+            }
         }
-        
-        // Fix: Allow Admin voucher (owner == null) OR Owner Match
-        if (v.getOwner() != null) {
-             if (venue.getOwner() == null || !venue.getOwner().getId().equals(v.getOwner().getId())) {
-                 return new PreviewResponse(false, BigDecimal.ZERO, "Voucher not applicable to this venue");
-             }
+        // Trường hợp 2: Voucher được gán cho danh sách Venue cụ thể
+        else {
+            // Check xem ID venue gửi lên có nằm trong list venue của voucher không
+            isApplicable = v.getVenues().stream()
+                    .anyMatch(venue -> venue.getId().equals(req.getVenueId()));
         }
+
+        if (!isApplicable) {
+            return new PreviewResponse(false, BigDecimal.ZERO, "Voucher không áp dụng cho sân này");
+        }
+        // 👆 [HẾT PHẦN SỬA ĐỔI]
 
         BigDecimal discount;
         if (v.getType() == VoucherType.PERCENT) {
