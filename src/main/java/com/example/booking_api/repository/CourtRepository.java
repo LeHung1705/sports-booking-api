@@ -30,4 +30,6 @@ public interface CourtRepository extends JpaRepository<Court, UUID> {
             GROUP BY c.venue.id
             """)
     List<VenuePriceAgg> getPriceAggByVenueIds(@Param("venueIds") List<UUID> venueIds);
+
+    long countByVenue_Owner_Id(UUID ownerId);
 }

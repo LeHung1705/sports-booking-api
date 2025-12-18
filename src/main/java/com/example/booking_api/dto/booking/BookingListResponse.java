@@ -13,9 +13,16 @@ public class BookingListResponse {
     private UUID id;
     private String venue;
     private String court;
+    private UUID userId;
     private String userName; // New field
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private BigDecimal totalPrice;
     private String status;
+    
+    // Refund Info
+    private BigDecimal refundAmount;
+    private String refundBankName;
+    private String refundAccountNumber;
+    private String refundAccountName;
 }

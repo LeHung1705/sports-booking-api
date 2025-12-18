@@ -36,9 +36,14 @@ public class BookingService {
             User user = userRepository.findByFirebaseUid(firebaseUid)
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
+            List<BookingStatus> filterStatuses = req.getStatuses();
+            if ((filterStatuses == null || filterStatuses.isEmpty()) && req.getStatus() != null) {
+                filterStatuses = List.of(req.getStatus());
+            }
+
             List<Booking> bookings = bookingRepository.findByUserWithFilter(
                     user.getId(),
-                    req.getStatus(),
+                    filterStatuses,
                     req.getFrom(),
                     req.getTo()
             );
@@ -48,13 +53,17 @@ public class BookingService {
                             .id(b.getId())
                             .venue(b.getCourt().getVenue().getName())
                             .court(b.getCourt().getName())
+                            .userId(b.getUser() != null ? b.getUser().getId() : null)
                             .userName(b.getUser() != null ? b.getUser().getFullName() : "Unknown")
-                            .startTime(b.getStartTime())
-                            .endTime(b.getEndTime())
-                            .totalPrice(b.getTotalAmount())
-                            .status(b.getStatus() == null ? null : b.getStatus().name())
-                            .build())
-                    .toList();
+                                                        .startTime(b.getStartTime())
+                                                        .endTime(b.getEndTime())
+                                                        .totalPrice(b.getTotalAmount())
+                                                        .status(b.getStatus() == null ? null : b.getStatus().name())
+                                                        .refundAmount(b.getRefundAmount())
+                                                        .refundBankName(b.getRefundBankName())
+                                                        .refundAccountNumber(b.getRefundAccountNumber())
+                                                        .refundAccountName(b.getRefundAccountName())
+                                                        .build())                    .toList();
 
         } catch (Exception e) {
             throw new RuntimeException("QUERY_ERROR", e);
@@ -264,15 +273,32 @@ public class BookingService {
                     .build();
         }
 
+        // Check for voucher redemption
+        String voucherCode = null;
+        VoucherRedemption redemption = voucherRedemptionRepository.findByBooking_Id(b.getId()).orElse(null);
+        if (redemption != null && redemption.getVoucher() != null) {
+            voucherCode = redemption.getVoucher().getCode();
+        }
+
         return BookingDetailResponse.builder()
                 .id(b.getId())
                 .venue(b.getCourt().getVenue().getName())
                 .court(b.getCourt() == null ? null : b.getCourt().getName())
                 .startTime(b.getStartTime())
                 .endTime(b.getEndTime())
+                .createdAt(b.getCreatedAt())
                 .totalPrice(b.getTotalAmount())
+                .discountAmount(b.getDiscountAmount())
+                .voucherCode(voucherCode) // Set the voucher code here
                 .status(b.getStatus() == null ? null : b.getStatus().name())
                 .payment(paymentDto)
+                .bankBin(b.getCourt().getVenue().getBankBin())
+                .bankAccountNumber(b.getCourt().getVenue().getBankAccountNumber())
+                .bankAccountName(b.getCourt().getVenue().getBankAccountName())
+                .refundAmount(b.getRefundAmount())
+                .refundBankName(b.getRefundBankName())
+                .refundAccountNumber(b.getRefundAccountNumber())
+                .refundAccountName(b.getRefundAccountName())
                 .build();
     }
 
@@ -285,7 +311,7 @@ public class BookingService {
             throw new SecurityException("FORBIDDEN");
         }
 
-        if (booking.getStatus() != BookingStatus.PENDING) {
+        if (booking.getStatus() != BookingStatus.PENDING && booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
             throw new RuntimeException("BOOKING_STATUS_NOT_ALLOWED");
         }
 
@@ -467,9 +493,13 @@ public class BookingService {
             refundPercentage = BigDecimal.ZERO;
         }
 
-        // Deposit is 30% of total amount
-        BigDecimal depositAmount = booking.getTotalAmount().multiply(new BigDecimal("0.3"));
-        BigDecimal refundAmount = depositAmount.multiply(refundPercentage).setScale(2, RoundingMode.HALF_UP);
+        // Use the actual deposit/paid amount as base for refund
+        BigDecimal paidAmount = booking.getDepositAmount();
+        if (paidAmount == null) {
+             paidAmount = booking.getTotalAmount().multiply(new BigDecimal("0.3"));
+        }
+        
+        BigDecimal refundAmount = paidAmount.multiply(refundPercentage).setScale(2, RoundingMode.HALF_UP);
 
         Payment payment = booking.getPayment();
         if (payment != null) {
@@ -478,13 +508,20 @@ public class BookingService {
             if (paymentStatus == PaymentStatus.REFUND_PENDING) {
                 throw new RuntimeException("PAYMENT_IN_PROGRESS");
             }
-
-            if (paymentStatus == PaymentStatus.SUCCESS) {
-                System.out.println("NOTE: Booking canceled. Refund amount calculated: " + refundAmount);
-            }
         }
+        
+        // Save refund info
+        booking.setRefundAmount(refundAmount);
+        booking.setRefundBankName(req.getBankName());
+        booking.setRefundAccountNumber(req.getAccountNumber());
+        booking.setRefundAccountName(req.getAccountHolderName());
 
-        booking.setStatus(BookingStatus.CANCELED);
+        if (refundAmount.compareTo(BigDecimal.ZERO) > 0) {
+            booking.setStatus(BookingStatus.REFUND_PENDING);
+        } else {
+            booking.setStatus(BookingStatus.CANCELED);
+        }
+        
         booking.setCancelReason(req.getCancelReason());
         booking.setUpdatedAt(now);
 
@@ -545,24 +582,61 @@ public class BookingService {
         return getBookingDetail(firebaseUid, bookingId);
     }
 
-    public List<BookingListResponse> listOwnerBookings(String firebaseUid) {
+    @Transactional
+    public BookingDetailResponse confirmRefund(String firebaseUid, UUID bookingId) {
+        User me = userRepository.findByFirebaseUid(firebaseUid).orElseThrow(() -> new RuntimeException("User not found"));
+        Booking booking = bookingRepository.findById(bookingId).orElseThrow(() -> new RuntimeException("Booking not found"));
+
+        // Check if user is the owner of the venue
+        UUID ownerId = booking.getCourt().getVenue().getOwner().getId();
+        if (!ownerId.equals(me.getId())) {
+            throw new SecurityException("FORBIDDEN: Only venue owner can confirm refund");
+        }
+
+        if (booking.getStatus() != BookingStatus.REFUND_PENDING) {
+            throw new RuntimeException("INVALID_STATUS: Can only confirm refund if status is REFUND_PENDING");
+        }
+
+        booking.setStatus(BookingStatus.CANCELED);
+        booking.setUpdatedAt(LocalDateTime.now());
+        bookingRepository.save(booking);
+
+        return getBookingDetail(firebaseUid, bookingId);
+    }
+
+    public List<BookingListResponse> listOwnerBookings(String firebaseUid, BookingListRequest req) {
         User owner = userRepository.findByFirebaseUid(firebaseUid)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        List<Booking> bookings = bookingRepository.findByOwner(owner.getId());
+        List<BookingStatus> filterStatuses = req.getStatuses();
+        if ((filterStatuses == null || filterStatuses.isEmpty()) && req.getStatus() != null) {
+            filterStatuses = List.of(req.getStatus());
+        }
+
+        List<Booking> bookings = bookingRepository.findByOwnerWithFilter(
+                owner.getId(),
+                req.getVenueId(),
+                filterStatuses,
+                req.getFrom(),
+                req.getTo()
+        );
 
         return bookings.stream()
                 .map(b -> BookingListResponse.builder()
                         .id(b.getId())
                         .venue(b.getCourt().getVenue().getName())
                         .court(b.getCourt().getName())
+                        .userId(b.getUser() != null ? b.getUser().getId() : null)
                         .userName(b.getUser() != null ? b.getUser().getFullName() : "Unknown")
-                        .startTime(b.getStartTime())
-                        .endTime(b.getEndTime())
-                        .totalPrice(b.getTotalAmount())
-                        .status(b.getStatus() == null ? null : b.getStatus().name())
-                        .build())
-                .toList();
+                                                    .startTime(b.getStartTime())
+                                                    .endTime(b.getEndTime())
+                                                    .totalPrice(b.getTotalAmount())
+                                                    .status(b.getStatus() == null ? null : b.getStatus().name())
+                                                    .refundAmount(b.getRefundAmount())
+                                                    .refundBankName(b.getRefundBankName())
+                                                    .refundAccountNumber(b.getRefundAccountNumber())
+                                                    .refundAccountName(b.getRefundAccountName())
+                                                    .build())                .toList();
     }
 
     public List<BookingListResponse> listOwnerPendingBookings(String firebaseUid) {
@@ -576,12 +650,95 @@ public class BookingService {
                         .id(b.getId())
                         .venue(b.getCourt().getVenue().getName())
                         .court(b.getCourt().getName())
+                        .userId(b.getUser() != null ? b.getUser().getId() : null)
                         .userName(b.getUser() != null ? b.getUser().getFullName() : "Unknown")
-                        .startTime(b.getStartTime())
-                        .endTime(b.getEndTime())
-                        .totalPrice(b.getTotalAmount())
-                        .status(b.getStatus() == null ? null : b.getStatus().name())
-                        .build())
-                .toList();
+                                                    .startTime(b.getStartTime())
+                                                    .endTime(b.getEndTime())
+                                                    .totalPrice(b.getTotalAmount())
+                                                    .status(b.getStatus() == null ? null : b.getStatus().name())
+                                                    .refundAmount(b.getRefundAmount())
+                                                    .refundBankName(b.getRefundBankName())
+                                                    .refundAccountNumber(b.getRefundAccountNumber())
+                                                    .refundAccountName(b.getRefundAccountName())
+                                                    .build())                .toList();
     }
-}
+
+    public List<java.util.Map<String, Object>> getRevenueStats(String firebaseUid, LocalDateTime from, LocalDateTime to) {
+        User owner = userRepository.findByFirebaseUid(firebaseUid)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        System.out.println("DEBUG REVENUE STATS:");
+        System.out.println("  Owner: " + owner.getEmail());
+        System.out.println("  From: " + from);
+        System.out.println("  To: " + to);
+
+        List<BookingStatus> statuses = List.of(BookingStatus.CONFIRMED, BookingStatus.COMPLETED);
+        List<Booking> bookings = bookingRepository.findByOwnerWithFilter(
+                owner.getId(),
+                null,
+                statuses,
+                from,
+                to
+        );
+
+        System.out.println("  Found bookings: " + bookings.size());
+
+        // Aggregate by date
+        java.util.Map<LocalDate, BigDecimal> dailyRevenue = new java.util.TreeMap<>();
+        java.util.Map<LocalDate, Integer> dailyCount = new java.util.TreeMap<>();
+
+        for (Booking b : bookings) {
+            LocalDate date = b.getStartTime().toLocalDate();
+            dailyRevenue.put(date, dailyRevenue.getOrDefault(date, BigDecimal.ZERO).add(b.getTotalAmount()));
+            dailyCount.put(date, dailyCount.getOrDefault(date, 0) + 1);
+        }
+
+        List<java.util.Map<String, Object>> result = new ArrayList<>();
+        DateTimeFormatter formatter = DateTimeFormatter.ISO_LOCAL_DATE;
+
+        if (from != null && to != null) {
+            LocalDate start = from.toLocalDate();
+            LocalDate end = to.toLocalDate();
+            // Loop ensuring we cover the whole range including start and end
+            for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+                result.add(java.util.Map.of(
+                        "date", date.format(formatter),
+                        "value", dailyRevenue.getOrDefault(date, BigDecimal.ZERO),
+                        "count", dailyCount.getOrDefault(date, 0)
+                ));
+            }
+        } else {
+            dailyRevenue.forEach((date, amount) -> {
+                result.add(java.util.Map.of(
+                        "date", date.format(formatter),
+                        "value", amount,
+                        "count", dailyCount.getOrDefault(date, 0)
+                ));
+            });
+                }
+                
+                return result;
+            }
+        
+            @Transactional
+            public BookingDetailResponse declineBooking(String firebaseUid, UUID bookingId) {
+                User me = userRepository.findByFirebaseUid(firebaseUid).orElseThrow(() -> new RuntimeException("User not found"));
+                Booking booking = bookingRepository.findById(bookingId).orElseThrow(() -> new RuntimeException("Booking not found"));
+        
+                UUID ownerId = booking.getCourt().getVenue().getOwner().getId();
+                if (!ownerId.equals(me.getId())) {
+                    throw new SecurityException("FORBIDDEN: Only venue owner can decline booking");
+                }
+        
+                if (booking.getStatus() != BookingStatus.AWAITING_CONFIRM && booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
+                    throw new RuntimeException("INVALID_STATUS: Can only decline if status is AWAITING_CONFIRM or PENDING_PAYMENT");
+                }
+        
+                booking.setStatus(BookingStatus.CANCELED);
+                booking.setCancelReason("Owner declined payment/booking");
+                booking.setUpdatedAt(LocalDateTime.now());
+                bookingRepository.save(booking);
+        
+                return getBookingDetail(firebaseUid, bookingId);
+            }
+        }

@@ -1,6 +1,7 @@
 package com.example.booking_api.service;
 
 import com.example.booking_api.dto.user.UserListResponse;
+import com.example.booking_api.entity.User;
 import com.example.booking_api.entity.Venue;
 import com.example.booking_api.entity.enums.UserRole;
 import com.example.booking_api.repository.UserRepository;
@@ -8,6 +9,7 @@ import com.example.booking_api.repository.VenueRepository;
 import com.google.firebase.auth.ExportedUserRecord;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.ListUsersPage;
+import com.google.firebase.auth.UserRecord;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -28,7 +30,7 @@ public class AdminService {
         Map<String, Long> stats = new HashMap<>();
         stats.put("totalUsers", userRepository.count());
         stats.put("totalVenues", venueRepository.count());
-        // stats.put("pendingVenues", venueRepository.countByIsActiveFalse()); // If we added count method
+        stats.put("pendingVenues", venueRepository.countByIsActiveFalse());
         return stats;
     }
 
@@ -44,15 +46,30 @@ public class AdminService {
     }
 
     public void updateUserRole(String firebaseUid, UserRole newRole) throws Exception {
+        System.out.println("Updating role for " + firebaseUid + " to " + newRole);
 
-        var user = userRepository.findByFirebaseUid(firebaseUid)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userRepository.findByFirebaseUid(firebaseUid)
+                .orElse(null);
+
+        if (user == null) {
+            // Sync from Firebase
+            UserRecord firebaseUser = FirebaseAuth.getInstance().getUser(firebaseUid);
+            user = User.builder()
+                    .firebaseUid(firebaseUid)
+                    .email(firebaseUser.getEmail())
+                    .fullName(firebaseUser.getDisplayName())
+                    .role(UserRole.USER) // Default before update
+                    .build();
+        }
 
         user.setRole(newRole);
         userRepository.save(user);
 
-        FirebaseAuth.getInstance()
-                .setCustomUserClaims(firebaseUid, Map.of("role", newRole.name()));
+        // Update Firebase Custom Claims
+        Map<String, Object> claims = new HashMap<>(FirebaseAuth.getInstance().getUser(firebaseUid).getCustomClaims());
+        claims.put("role", newRole.name());
+        FirebaseAuth.getInstance().setCustomUserClaims(firebaseUid, claims);
+        System.out.println("Firebase claims updated for " + firebaseUid);
     }
 
     public List<UserListResponse> getAllUsers() throws Exception {
