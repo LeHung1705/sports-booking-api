@@ -232,9 +232,7 @@ public class BookingController {
         try {
             BookingCancelResponse res = bookingService.cancelBooking(firebaseUid, id, request);
 
-            return ResponseEntity.ok(Map.of(
-                    "status", res.getStatus().name()
-            ));
+            return ResponseEntity.ok(res);
         } catch (SecurityException e) {
             return ResponseEntity.status(403).body(Map.of(
                     "message", "Bạn không có quyền huỷ đơn này"
@@ -296,6 +294,18 @@ public class BookingController {
     public ResponseEntity<?> confirmPayment(@AuthenticationPrincipal String firebaseUid, @PathVariable UUID id) {
         try {
             BookingDetailResponse res = bookingService.confirmPayment(firebaseUid, id);
+            return ResponseEntity.ok(res);
+        } catch (SecurityException e) {
+            return ResponseEntity.status(403).body(Map.of("message", "Forbidden"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/{id}/refund-confirm")
+    public ResponseEntity<?> confirmRefund(@AuthenticationPrincipal String firebaseUid, @PathVariable UUID id) {
+        try {
+            BookingDetailResponse res = bookingService.confirmRefund(firebaseUid, id);
             return ResponseEntity.ok(res);
         } catch (SecurityException e) {
             return ResponseEntity.status(403).body(Map.of("message", "Forbidden"));

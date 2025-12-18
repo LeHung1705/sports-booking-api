@@ -19,6 +19,12 @@ public class BookingDetailResponse {
     private String status;
     private PaymentItem payment;
 
+    // Refund Info
+    private BigDecimal refundAmount;
+    private String refundBankName;
+    private String refundAccountNumber;
+    private String refundAccountName;
+
     @Builder
     @Data
     public static class PaymentItem {

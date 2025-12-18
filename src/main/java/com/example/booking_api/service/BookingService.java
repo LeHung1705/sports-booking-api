@@ -55,12 +55,15 @@ public class BookingService {
                             .court(b.getCourt().getName())
                             .userId(b.getUser() != null ? b.getUser().getId() : null)
                             .userName(b.getUser() != null ? b.getUser().getFullName() : "Unknown")
-                            .startTime(b.getStartTime())
-                            .endTime(b.getEndTime())
-                            .totalPrice(b.getTotalAmount())
-                            .status(b.getStatus() == null ? null : b.getStatus().name())
-                            .build())
-                    .toList();
+                                                        .startTime(b.getStartTime())
+                                                        .endTime(b.getEndTime())
+                                                        .totalPrice(b.getTotalAmount())
+                                                        .status(b.getStatus() == null ? null : b.getStatus().name())
+                                                        .refundAmount(b.getRefundAmount())
+                                                        .refundBankName(b.getRefundBankName())
+                                                        .refundAccountNumber(b.getRefundAccountNumber())
+                                                        .refundAccountName(b.getRefundAccountName())
+                                                        .build())                    .toList();
 
         } catch (Exception e) {
             throw new RuntimeException("QUERY_ERROR", e);
@@ -279,6 +282,10 @@ public class BookingService {
                 .totalPrice(b.getTotalAmount())
                 .status(b.getStatus() == null ? null : b.getStatus().name())
                 .payment(paymentDto)
+                .refundAmount(b.getRefundAmount())
+                .refundBankName(b.getRefundBankName())
+                .refundAccountNumber(b.getRefundAccountNumber())
+                .refundAccountName(b.getRefundAccountName())
                 .build();
     }
 
@@ -473,9 +480,13 @@ public class BookingService {
             refundPercentage = BigDecimal.ZERO;
         }
 
-        // Deposit is 30% of total amount
-        BigDecimal depositAmount = booking.getTotalAmount().multiply(new BigDecimal("0.3"));
-        BigDecimal refundAmount = depositAmount.multiply(refundPercentage).setScale(2, RoundingMode.HALF_UP);
+        // Use the actual deposit/paid amount as base for refund
+        BigDecimal paidAmount = booking.getDepositAmount();
+        if (paidAmount == null) {
+             paidAmount = booking.getTotalAmount().multiply(new BigDecimal("0.3"));
+        }
+        
+        BigDecimal refundAmount = paidAmount.multiply(refundPercentage).setScale(2, RoundingMode.HALF_UP);
 
         Payment payment = booking.getPayment();
         if (payment != null) {
@@ -484,13 +495,20 @@ public class BookingService {
             if (paymentStatus == PaymentStatus.REFUND_PENDING) {
                 throw new RuntimeException("PAYMENT_IN_PROGRESS");
             }
-
-            if (paymentStatus == PaymentStatus.SUCCESS) {
-                System.out.println("NOTE: Booking canceled. Refund amount calculated: " + refundAmount);
-            }
         }
+        
+        // Save refund info
+        booking.setRefundAmount(refundAmount);
+        booking.setRefundBankName(req.getBankName());
+        booking.setRefundAccountNumber(req.getAccountNumber());
+        booking.setRefundAccountName(req.getAccountHolderName());
 
-        booking.setStatus(BookingStatus.CANCELED);
+        if (refundAmount.compareTo(BigDecimal.ZERO) > 0) {
+            booking.setStatus(BookingStatus.REFUND_PENDING);
+        } else {
+            booking.setStatus(BookingStatus.CANCELED);
+        }
+        
         booking.setCancelReason(req.getCancelReason());
         booking.setUpdatedAt(now);
 
@@ -551,6 +569,28 @@ public class BookingService {
         return getBookingDetail(firebaseUid, bookingId);
     }
 
+    @Transactional
+    public BookingDetailResponse confirmRefund(String firebaseUid, UUID bookingId) {
+        User me = userRepository.findByFirebaseUid(firebaseUid).orElseThrow(() -> new RuntimeException("User not found"));
+        Booking booking = bookingRepository.findById(bookingId).orElseThrow(() -> new RuntimeException("Booking not found"));
+
+        // Check if user is the owner of the venue
+        UUID ownerId = booking.getCourt().getVenue().getOwner().getId();
+        if (!ownerId.equals(me.getId())) {
+            throw new SecurityException("FORBIDDEN: Only venue owner can confirm refund");
+        }
+
+        if (booking.getStatus() != BookingStatus.REFUND_PENDING) {
+            throw new RuntimeException("INVALID_STATUS: Can only confirm refund if status is REFUND_PENDING");
+        }
+
+        booking.setStatus(BookingStatus.CANCELED);
+        booking.setUpdatedAt(LocalDateTime.now());
+        bookingRepository.save(booking);
+
+        return getBookingDetail(firebaseUid, bookingId);
+    }
+
     public List<BookingListResponse> listOwnerBookings(String firebaseUid, BookingListRequest req) {
         User owner = userRepository.findByFirebaseUid(firebaseUid)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -575,12 +615,15 @@ public class BookingService {
                         .court(b.getCourt().getName())
                         .userId(b.getUser() != null ? b.getUser().getId() : null)
                         .userName(b.getUser() != null ? b.getUser().getFullName() : "Unknown")
-                        .startTime(b.getStartTime())
-                        .endTime(b.getEndTime())
-                        .totalPrice(b.getTotalAmount())
-                        .status(b.getStatus() == null ? null : b.getStatus().name())
-                        .build())
-                .toList();
+                                                    .startTime(b.getStartTime())
+                                                    .endTime(b.getEndTime())
+                                                    .totalPrice(b.getTotalAmount())
+                                                    .status(b.getStatus() == null ? null : b.getStatus().name())
+                                                    .refundAmount(b.getRefundAmount())
+                                                    .refundBankName(b.getRefundBankName())
+                                                    .refundAccountNumber(b.getRefundAccountNumber())
+                                                    .refundAccountName(b.getRefundAccountName())
+                                                    .build())                .toList();
     }
 
     public List<BookingListResponse> listOwnerPendingBookings(String firebaseUid) {
@@ -596,12 +639,15 @@ public class BookingService {
                         .court(b.getCourt().getName())
                         .userId(b.getUser() != null ? b.getUser().getId() : null)
                         .userName(b.getUser() != null ? b.getUser().getFullName() : "Unknown")
-                        .startTime(b.getStartTime())
-                        .endTime(b.getEndTime())
-                        .totalPrice(b.getTotalAmount())
-                        .status(b.getStatus() == null ? null : b.getStatus().name())
-                        .build())
-                .toList();
+                                                    .startTime(b.getStartTime())
+                                                    .endTime(b.getEndTime())
+                                                    .totalPrice(b.getTotalAmount())
+                                                    .status(b.getStatus() == null ? null : b.getStatus().name())
+                                                    .refundAmount(b.getRefundAmount())
+                                                    .refundBankName(b.getRefundBankName())
+                                                    .refundAccountNumber(b.getRefundAccountNumber())
+                                                    .refundAccountName(b.getRefundAccountName())
+                                                    .build())                .toList();
     }
 
     public List<java.util.Map<String, Object>> getRevenueStats(String firebaseUid, LocalDateTime from, LocalDateTime to) {

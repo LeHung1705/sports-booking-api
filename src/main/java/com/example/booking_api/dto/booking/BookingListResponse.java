@@ -19,4 +19,10 @@ public class BookingListResponse {
     private LocalDateTime endTime;
     private BigDecimal totalPrice;
     private String status;
+    
+    // Refund Info
+    private BigDecimal refundAmount;
+    private String refundBankName;
+    private String refundAccountNumber;
+    private String refundAccountName;
 }
