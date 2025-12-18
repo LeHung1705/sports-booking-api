@@ -113,11 +113,28 @@ public class VoucherService {
         // 👆 [HẾT PHẦN BỔ SUNG]
         return voucherRepository.save(v);
     }
-
-    public List<Voucher> listByOwner(String firebaseUid) {
+    // 👇 [SỬA ĐỔI QUAN TRỌNG] Thay đổi kiểu trả về từ List<Voucher> thành List<VoucherResponse>
+    // Để cắt đứt vòng lặp vô tận khi chuyển sang JSON
+    public List<VoucherResponse> listByOwner(String firebaseUid) {
         User owner = userRepository.findByFirebaseUid(firebaseUid)
                 .orElseThrow(() -> new IllegalArgumentException("Owner not found"));
-        return voucherRepository.findAllByOwner_Id(owner.getId());
+
+        List<Voucher> vouchers = voucherRepository.findAllByOwner_Id(owner.getId());
+
+        // Map từ Entity sang DTO
+        return vouchers.stream().map(v -> VoucherResponse.builder()
+                .id(v.getId())
+                .code(v.getCode())
+                .type(v.getType())
+                .value(v.getValue())
+                .minOrderAmount(v.getMinOrderAmount())
+                .validFrom(v.getValidFrom())
+                .validTo(v.getValidTo())
+                .usageLimit(v.getUsageLimit())
+                .usedCount(v.getUsedCount())
+                .active(v.getActive())
+                .build()
+        ).toList();
     }
 
     @Transactional
