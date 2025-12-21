@@ -87,6 +87,8 @@ public class ReviewService {
                         .comment(req.getComment())
                         .build()
         );
+        booking.setStatus(BookingStatus.REVIEWED);
+        bookingRepository.save(booking);
 
         // trả response
         return new ReviewItemResponse(
