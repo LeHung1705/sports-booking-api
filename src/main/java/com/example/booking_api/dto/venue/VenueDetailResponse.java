@@ -19,6 +19,11 @@ public class VenueDetailResponse {
     private String description;
     private String imageUrl;
 
+    private String bankBin;
+    private String bankName;
+    private String bankAccountNumber;
+    private String bankAccountName;
+
     private Double avgRating;
     private Long reviewCount;
 

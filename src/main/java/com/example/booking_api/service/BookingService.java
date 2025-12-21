@@ -1,6 +1,5 @@
 package com.example.booking_api.service;
-import org.springframework.context.ApplicationEventPublisher; // 👈 Mới
-import com.example.booking_api.event.BookingEvent;          // 👈 Mới
+
 import com.example.booking_api.dto.booking.*;
 import com.example.booking_api.entity.*;
 import com.example.booking_api.entity.enums.BookingStatus;
@@ -21,10 +20,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import org.springframework.scheduling.TaskScheduler;
-import java.time.Instant;
-import java.time.ZoneId;
-import com.example.booking_api.entity.enums.NotificationType; // 👈 BỔ SUNG DÒNG NÀY
 
 @Service
 @RequiredArgsConstructor
@@ -35,9 +30,6 @@ public class BookingService {
     private final CourtRepository courtRepository;
     private final VoucherRepository voucherRepository;
     private final VoucherRedemptionRepository voucherRedemptionRepository;
-    // 👇 2. THÊM 2 DÒNG NÀY (Đừng xóa gì ở trên)
-    private final ApplicationEventPublisher eventPublisher;   // ✅ THÊM DÒNG NÀY VÀO
-    private final TaskScheduler taskScheduler;
 
     public List<BookingListResponse> listUserBookings(String firebaseUid, BookingListRequest req) {
         try {
@@ -137,7 +129,7 @@ public class BookingService {
         BigDecimal depositAmount;
 
         if ("DEPOSIT".equalsIgnoreCase(req.getPaymentOption())) {
-            // 30% deposit
+             // 30% deposit
             depositAmount = totalAmount.multiply(new BigDecimal("0.3")).setScale(2, RoundingMode.HALF_UP);
             amountToPay = depositAmount;
         } else {
@@ -162,11 +154,6 @@ public class BookingService {
         booking.setUpdatedAt(now);
 
         Booking saved = bookingRepository.save(booking);
-        // 👇 ĐOẠN CODE MỚI: Gửi thông báo cho CHỦ SÂN (OWNER)
-        // 👇 Thay toàn bộ đoạn try-catch dài dòng cũ bằng 1 dòng này:
-        eventPublisher.publishEvent(new BookingEvent(this, saved, NotificationType.BOOKING_CREATED));
-
-        // 👆 HẾT PHẦN SỬA
         return BookingCreateResponse.builder()
                 .id(saved.getId())
                 .totalAmount(saved.getTotalAmount())
@@ -197,7 +184,7 @@ public class BookingService {
         LocalTime closeTime = LocalTime.of(23, 0);
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm");
-
+        
         // Capture current time to disable past slots
         LocalDateTime now = LocalDateTime.now();
 
@@ -208,7 +195,7 @@ public class BookingService {
             // Tạo Slot chuẩn
             LocalDateTime slotStart = LocalDateTime.of(date, current);
             LocalDateTime slotEnd = LocalDateTime.of(date, next);
-
+            
             // Check if slot is in the past
             boolean isPast = slotStart.isBefore(now);
 
@@ -323,7 +310,7 @@ public class BookingService {
 
         // Validate voucher
         LocalDateTime now = LocalDateTime.now();
-
+        
         // Convert Voucher OffsetDateTime to LocalDateTime for simple comparison
         LocalDateTime voucherValidFrom = voucher.getValidFrom() != null ? voucher.getValidFrom().toLocalDateTime() : null;
         LocalDateTime voucherValidTo = voucher.getValidTo() != null ? voucher.getValidTo().toLocalDateTime() : null;
@@ -523,13 +510,13 @@ public class BookingService {
         }
 
         booking.setStatus(BookingStatus.AWAITING_CONFIRM);
-
+        
         if (req != null) {
             booking.setRefundBankName(req.getRefundBankName());
             booking.setRefundAccountNumber(req.getRefundAccountNumber());
             booking.setRefundAccountName(req.getRefundAccountName());
         }
-
+        
         booking.setUpdatedAt(LocalDateTime.now());
         bookingRepository.save(booking);
 
@@ -554,10 +541,6 @@ public class BookingService {
         booking.setStatus(BookingStatus.CONFIRMED);
         booking.setUpdatedAt(LocalDateTime.now());
         bookingRepository.save(booking);
-        // 👇 ĐOẠN CODE MỚI THÊM VÀO ĐÂY 👇
-        // 👇 Dùng BOOKING_CONFIRMED (nghĩa là: Đã XÁC NHẬN)
-        eventPublisher.publishEvent(new BookingEvent(this, booking, NotificationType.BOOKING_CONFIRMED));
-        // 👆 HẾT ĐOẠN MỚI
 
         return getBookingDetail(firebaseUid, bookingId);
     }
@@ -600,52 +583,5 @@ public class BookingService {
                         .status(b.getStatus() == null ? null : b.getStatus().name())
                         .build())
                 .toList();
-    }// 👇 4. THÊM HÀM MỚI NÀY VÀO CUỐI CLASS
-
-    private void scheduleBookingReminder(Booking booking) {
-        if (booking.getUser() == null || booking.getStartTime() == null) return;
-
-        // --- CẤU HÌNH THỜI GIAN NHẮC ---
-        // CÁCH 1: Chạy thật (Nhắc trước 15 phút)
-        long secondsBefore = 900;
-        Instant remindTime = booking.getStartTime()
-                .atZone(ZoneId.systemDefault())
-                .toInstant()
-                .minusSeconds(secondsBefore);
-
-        if (remindTime.isBefore(Instant.now())) return;
-
-        taskScheduler.schedule(() -> {
-            try {
-                // 👇 SỬA ĐOẠN NÀY: Thay vì gọi service, hãy BẮN EVENT
-                // (Leader sẽ rất thích cách này vì nó đồng bộ với phần trên)
-                eventPublisher.publishEvent(new BookingEvent(this, booking, NotificationType.REMINDER));
-
-                System.out.println("⏰ TaskScheduler: Đã bắn event nhắc nhở REMINDER");
-
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }, remindTime);
-
-        System.out.println("✅ Đã lên lịch nhắc user vào lúc: " + remindTime);
-    }
-    // 👇 BỔ SUNG HÀM TỪ CHỐI ĐƠN (DECLINE) - Nếu bạn cần
-    @Transactional
-    public com.example.booking_api.entity.Booking declineBooking(UUID bookingId, String reason) {
-        com.example.booking_api.entity.Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new RuntimeException("Booking not found"));
-
-        // Chuyển trạng thái sang CANCELED (hoặc REJECTED nếu enum có)
-        booking.setStatus(com.example.booking_api.entity.enums.BookingStatus.CANCELED);
-        // Lưu lý do (nếu entity có trường cancelReason)
-        booking.setCancelReason(reason);
-
-        com.example.booking_api.entity.Booking savedBooking = bookingRepository.save(booking);
-
-        // Gửi thông báo
-        eventPublisher.publishEvent(new BookingEvent(this, savedBooking, NotificationType.BOOKING_CANCELLED));
-
-        return savedBooking;
     }
 }
