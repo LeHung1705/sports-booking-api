@@ -1,9 +1,10 @@
 package com.example.booking_api.entity;
-
+import jakarta.persistence.*;
 import com.example.booking_api.entity.enums.NotificationType;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -24,7 +25,9 @@ public class Notification {
     // user_id trong DB là BINARY(16) -> map sang UUID
     @Column(name = "user_id", nullable = false, columnDefinition = "BINARY(16)")
     private UUID userId;
-
+    // 👇 BỔ SUNG THÊM DÒNG NÀY (Để liên kết với đơn hàng)
+    @Column(name = "booking_id", columnDefinition = "BINARY(16)")
+    private UUID bookingId;
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, length = 50)
     private NotificationType type;
@@ -39,6 +42,17 @@ public class Notification {
     @Column(name = "`read`", nullable = false)
     private boolean read;
 
-    @Column(name = "created_at", insertable = false, updatable = false)
+    // 👇 Cột thời gian
+    @Column(name = "created_at")
     private OffsetDateTime createdAt;
+    // 👇 THÊM ĐOẠN NÀY VÀO: Tự động lưu thời gian khi Insert
+    // 👇 ĐOẠN CODE QUAN TRỌNG ĐỂ TỰ ĐỘNG LƯU GIỜ
+    // 👇 HÀM TỰ ĐỘNG LƯU THỜI GIAN (Fix lỗi NULL)
+    @PrePersist
+    protected void onCreate() {
+        if (this.createdAt == null) {
+            // Dùng OffsetDateTime.now() để khớp với kiểu dữ liệu
+            this.createdAt = OffsetDateTime.now();
+        }
+    }
 }

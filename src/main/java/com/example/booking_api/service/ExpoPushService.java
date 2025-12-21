@@ -10,8 +10,10 @@ public class ExpoPushService {
 
     private final String EXPO_API_URL = "https://exp.host/--/api/v2/push/send";
 
-    public void sendExpoNotification(String expoToken, String title, String body) {
-        // Kiểm tra token có hợp lệ không (Phải bắt đầu bằng ExponentPushToken)
+    // 👇 CẬP NHẬT: Thêm tham số Map<String, String> data vào cuối
+    public void sendExpoNotification(String expoToken, String title, String body, Map<String, String> data) {
+
+        // Kiểm tra token có hợp lệ không
         if (expoToken == null || !expoToken.startsWith("ExponentPushToken")) {
             System.err.println("❌ Token không phải Expo Token: " + expoToken);
             return;
@@ -25,7 +27,11 @@ public class ExpoPushService {
         message.put("title", title);
         message.put("body", body);
         message.put("sound", "default");
-        message.put("data", Map.of("someData", "value")); // Dữ liệu kèm theo nếu cần
+
+        // 👇 CẬP NHẬT: Gắn dữ liệu động vào đây (để App xử lý chuyển trang)
+        if (data != null && !data.isEmpty()) {
+            message.put("data", data);
+        }
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

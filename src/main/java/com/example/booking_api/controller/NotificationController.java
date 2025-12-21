@@ -1,13 +1,16 @@
 package com.example.booking_api.controller;
 
+import com.example.booking_api.entity.User;
 import com.example.booking_api.service.NotificationService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/notifications")
@@ -44,6 +47,19 @@ public class NotificationController {
         notificationService.sendNotificationToUser(email, req.getTitle(), req.getBody());
         return ResponseEntity.ok(Map.of("message", "Sent"));
     }
+    // 👇 BỔ SUNG API MỚI
+    @GetMapping("/my-notifications")
+    public ResponseEntity<?> getMyNotifications() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        return ResponseEntity.ok(notificationService.getMyNotifications(email));
+    }
+    // API đánh dấu 1 thông báo là đã đọc
+    @PutMapping("/{id}/read")
+    public ResponseEntity<Void> markAsRead(@PathVariable UUID id) {
+        notificationService.markAsRead(id);
+        return ResponseEntity.ok().build();
+    }
+
 
     // --- DTO Classes ---
     @Data

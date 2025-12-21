@@ -1,15 +1,17 @@
 package com.example.booking_api.service;
 
 import com.example.booking_api.entity.FcmToken;
+import com.example.booking_api.entity.Notification;
 import com.example.booking_api.entity.User;
+import com.example.booking_api.entity.enums.NotificationType;
 import com.example.booking_api.repository.FcmTokenRepository;
+import com.example.booking_api.repository.NotificationRepository;
 import com.example.booking_api.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -18,7 +20,8 @@ public class NotificationService {
     private final FcmTokenRepository tokenRepository;
     private final UserRepository userRepository;
     private final ExpoPushService expoPushService;
-
+    // 👇 BỔ SUNG: Inject thêm cái này
+    private final NotificationRepository notificationRepository;
     // --- 1. Đăng ký Token ---
     @Transactional
     public void registerToken(String firebaseUid, String token, String deviceType) {
@@ -83,8 +86,70 @@ public class NotificationService {
 
         // Gửi cho tất cả token của user đó
         for (FcmToken t : tokens) {
-            System.out.println("🚀 Đang bắn thông báo tới Token: " + t.getToken());
-            expoPushService.sendExpoNotification(t.getToken(), title, body);
+            // Truyền null vì hàm test này không có bookingId
+            expoPushService.sendExpoNotification(t.getToken(), title, body, null);
         }
     }
+
+    // 👇 BỔ SUNG HÀM MỚI (Copy toàn bộ đoạn này vào cuối class)
+    @Transactional
+    public void sendAndSaveNotification(User receiver, String title, String body, UUID bookingId, NotificationType type) {
+        // 1. LƯU VÀO DATABASE (Phần còn thiếu)
+        try {
+            Notification noti = Notification.builder()
+                    .userId(receiver.getId()) // Code bạn dùng userId dạng UUID
+                    .title(title)
+                    .body(body)
+                    .bookingId(bookingId)
+                    .type(type)
+                    .read(false)
+                    .createdAt(java.time.OffsetDateTime.now()) // 👈 THÊM DÒNG NÀY (Gán cứng thời gian luôn)
+                    .build();
+
+            notificationRepository.save(noti);
+            System.out.println("💾 Đã lưu thông báo vào DB cho: " + receiver.getEmail());
+        } catch (Exception e) {
+            System.err.println("❌ Lỗi lưu DB: " + e.getMessage());
+        }
+
+        // 2. GỬI PUSH (Tái sử dụng logic cũ hoặc copy lại logic gửi push)
+        // 2. GỬI PUSH (Cập nhật mới)
+        List<FcmToken> tokens = tokenRepository.findByUser(receiver);
+        if (!tokens.isEmpty()) {
+            // 👇 Tạo gói dữ liệu để gửi kèm
+            Map<String, String> extraData = new HashMap<>();
+            extraData.put("bookingId", bookingId.toString());
+            extraData.put("type", type.name()); // Để App biết là CREATED hay CONFIRMED
+
+            for (FcmToken t : tokens) {
+                // 👇 Gọi hàm mới có truyền thêm extraData
+                expoPushService.sendExpoNotification(t.getToken(), title, body, extraData);
+            }
+        }
+        }
+    // 👇 BỔ SUNG HÀM LẤY DANH SÁCH (Cho Controller gọi)
+    public List<Notification> getMyNotifications(String firebaseUid) {
+        User user = userRepository.findByFirebaseUid(firebaseUid)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return notificationRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
+    }
+    // Hàm xử lý đánh dấu 1 cái
+    public void markAsRead(UUID id) {
+        Notification notification = notificationRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Notification not found"));
+
+        notification.setRead(true); // set is_read = true
+        notificationRepository.save(notification);
+    }
+
+    // Hàm xử lý đánh dấu tất cả (Optional)
+    public void markAllAsRead(UUID userId) {
+        List<Notification> list = notificationRepository.findAllByUserId(userId);
+        for (Notification n : list) {
+            n.setRead(true);
+        }
+        notificationRepository.saveAll(list);
+    }
+
+
 }
