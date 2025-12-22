@@ -53,6 +53,8 @@ public class VenueService {
                 .bankName(req.getBankName())
                 .bankAccountNumber(req.getBankAccountNumber())
                 .bankAccountName(req.getBankAccountName())
+                .openTime(req.getOpenTime())
+                .closeTime(req.getCloseTime())
                 .isActive(false) // Mặc định là false chờ duyệt
                 .build();
         Venue saved = venueRepository.save(v);
@@ -79,6 +81,8 @@ public class VenueService {
                 .bankName(saved.getBankName())
                 .bankAccountNumber(saved.getBankAccountNumber())
                 .bankAccountName(saved.getBankAccountName())
+                .openTime(saved.getOpenTime())
+                .closeTime(saved.getCloseTime())
                 .build();
     }
     // 👇 [BỔ SUNG HÀM NÀY]
@@ -106,6 +110,8 @@ public class VenueService {
                 .bankName(venue.getBankName())
                 .bankAccountNumber(venue.getBankAccountNumber())
                 .bankAccountName(venue.getBankAccountName())
+                .openTime(venue.getOpenTime())
+                .closeTime(venue.getCloseTime())
                 .build();
     }
     // Sử dụng logic từ MAIN (Có tính năng aggregation giá min/max)
@@ -208,6 +214,8 @@ public class VenueService {
                 .bankName(venue.getBankName())
                 .bankAccountNumber(venue.getBankAccountNumber())
                 .bankAccountName(venue.getBankAccountName())
+                .openTime(venue.getOpenTime())
+                .closeTime(venue.getCloseTime())
                 .avgRating(avgRating)
                 .reviewCount(reviewCount)
                 .courts(venue.getCourts() == null ? List.of()
@@ -257,6 +265,8 @@ public class VenueService {
         if (req.getBankName() != null) venue.setBankName(req.getBankName());
         if (req.getBankAccountNumber() != null) venue.setBankAccountNumber(req.getBankAccountNumber());
         if (req.getBankAccountName() != null) venue.setBankAccountName(req.getBankAccountName());
+        if (req.getOpenTime() != null) venue.setOpenTime(req.getOpenTime());
+        if (req.getCloseTime() != null) venue.setCloseTime(req.getCloseTime());
 
         // Venue uses OffsetDateTime for now, assuming not refactored yet.
         // If Venue was refactored, this should be LocalDateTime.now()
@@ -284,6 +294,8 @@ public class VenueService {
                 .bankName(saved.getBankName())
                 .bankAccountNumber(saved.getBankAccountNumber())
                 .bankAccountName(saved.getBankAccountName())
+                .openTime(saved.getOpenTime())
+                .closeTime(saved.getCloseTime())
                 .build();
     }
 
@@ -332,8 +344,8 @@ public class VenueService {
                 .toList();
 
         // 3. Generate 30-minute slots
-        LocalTime openTime = LocalTime.of(5, 0);  // 05:00
-        LocalTime closeTime = LocalTime.of(23, 0); // 23:00
+        LocalTime openTime = venue.getOpenTime() != null ? venue.getOpenTime() : LocalTime.of(5, 0);
+        LocalTime closeTime = venue.getCloseTime() != null ? venue.getCloseTime() : LocalTime.of(23, 0);
 
         java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm");
 
