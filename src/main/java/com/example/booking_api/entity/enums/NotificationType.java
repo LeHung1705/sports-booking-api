@@ -5,6 +5,11 @@ public enum NotificationType {
     PAYMENT_SUCCESS,
     REMINDER,
     SYSTEM,
-    BOOKING_CREATED,// 👈 THÊM DÒNG NÀY (Để báo cho Owner có khách mới)
-    BOOKING_CANCELLED
+    BOOKING_CREATED,
+    BOOKING_CANCELLED,
+    VENUE_CREATED,
+    VENUE_APPROVED,
+    VENUE_REJECTED,
+    REFUND_REQUESTED,
+    REFUND_COMPLETED
 }

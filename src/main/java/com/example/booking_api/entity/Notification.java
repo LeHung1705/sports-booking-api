@@ -28,6 +28,10 @@ public class Notification {
     // 👇 BỔ SUNG THÊM DÒNG NÀY (Để liên kết với đơn hàng)
     @Column(name = "booking_id", columnDefinition = "BINARY(16)")
     private UUID bookingId;
+
+    @Column(name = "venue_id", columnDefinition = "BINARY(16)")
+    private UUID venueId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, length = 50)
     private NotificationType type;

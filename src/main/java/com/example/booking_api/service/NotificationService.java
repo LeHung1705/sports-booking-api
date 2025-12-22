@@ -91,19 +91,26 @@ public class NotificationService {
         }
     }
 
-    // 👇 BỔ SUNG HÀM MỚI (Copy toàn bộ đoạn này vào cuối class)
+    // Hàm cũ (Giữ lại để tương thích với BookingListener)
     @Transactional
     public void sendAndSaveNotification(User receiver, String title, String body, UUID bookingId, NotificationType type) {
-        // 1. LƯU VÀO DATABASE (Phần còn thiếu)
+        sendAndSaveNotification(receiver, title, body, bookingId, null, type);
+    }
+
+    // Hàm mới (Full options)
+    @Transactional
+    public void sendAndSaveNotification(User receiver, String title, String body, UUID bookingId, UUID venueId, NotificationType type) {
+        // 1. LƯU VÀO DATABASE
         try {
             Notification noti = Notification.builder()
-                    .userId(receiver.getId()) // Code bạn dùng userId dạng UUID
+                    .userId(receiver.getId())
                     .title(title)
                     .body(body)
                     .bookingId(bookingId)
+                    .venueId(venueId) // 👇 Lưu venueId
                     .type(type)
                     .read(false)
-                    .createdAt(java.time.OffsetDateTime.now()) // 👈 THÊM DÒNG NÀY (Gán cứng thời gian luôn)
+                    .createdAt(java.time.OffsetDateTime.now())
                     .build();
 
             notificationRepository.save(noti);
@@ -112,21 +119,19 @@ public class NotificationService {
             System.err.println("❌ Lỗi lưu DB: " + e.getMessage());
         }
 
-        // 2. GỬI PUSH (Tái sử dụng logic cũ hoặc copy lại logic gửi push)
-        // 2. GỬI PUSH (Cập nhật mới)
+        // 2. GỬI PUSH
         List<FcmToken> tokens = tokenRepository.findByUser(receiver);
         if (!tokens.isEmpty()) {
-            // 👇 Tạo gói dữ liệu để gửi kèm
             Map<String, String> extraData = new HashMap<>();
-            extraData.put("bookingId", bookingId.toString());
-            extraData.put("type", type.name()); // Để App biết là CREATED hay CONFIRMED
+            if (bookingId != null) extraData.put("bookingId", bookingId.toString());
+            if (venueId != null) extraData.put("venueId", venueId.toString()); // 👇 Gửi kèm venueId
+            extraData.put("type", type.name());
 
             for (FcmToken t : tokens) {
-                // 👇 Gọi hàm mới có truyền thêm extraData
                 expoPushService.sendExpoNotification(t.getToken(), title, body, extraData);
             }
         }
-        }
+    }
     // 👇 BỔ SUNG HÀM LẤY DANH SÁCH (Cho Controller gọi)
     public List<Notification> getMyNotifications(String firebaseUid) {
         User user = userRepository.findByFirebaseUid(firebaseUid)

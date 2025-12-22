@@ -24,7 +24,7 @@ public class BookingListener {
     private final BookingRepository bookingRepository;
 
     @Async
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     // 👇 SỬA DÒNG NÀY: Thêm propagation = Propagation.REQUIRES_NEW
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleBookingEvent(BookingEvent event) {
@@ -88,6 +88,30 @@ public class BookingListener {
                 if (user != null) {
                     String title = "⚽ Sắp đến giờ ra sân!";
                     String body = "Chỉ còn 15 phút nữa là đến giờ đá tại " + booking.getCourt().getName();
+
+                    notificationService.sendAndSaveNotification(user, title, body, booking.getId(), type);
+                }
+            }
+
+            // 5. YÊU CẦU HOÀN TIỀN -> Báo Owner
+            else if (type == NotificationType.REFUND_REQUESTED) {
+                User owner = booking.getCourt().getVenue().getOwner();
+                if (owner != null) {
+                    String title = "💸 Yêu cầu hoàn tiền mới";
+                    String body = "Khách hàng " + booking.getUser().getFullName()
+                            + " yêu cầu hủy sân và hoàn tiền cho lịch đặt tại " + booking.getCourt().getName();
+
+                    notificationService.sendAndSaveNotification(owner, title, body, booking.getId(), type);
+                }
+            }
+
+            // 6. HOÀN TIỀN THÀNH CÔNG -> Báo User
+            else if (type == NotificationType.REFUND_COMPLETED) {
+                User user = booking.getUser();
+                if (user != null) {
+                    String title = "💰 Đã hoàn tiền thành công";
+                    String body = "Chủ sân đã xác nhận hoàn tiền cho lịch đặt tại " + booking.getCourt().getName()
+                            + ". Vui lòng kiểm tra tài khoản.";
 
                     notificationService.sendAndSaveNotification(user, title, body, booking.getId(), type);
                 }

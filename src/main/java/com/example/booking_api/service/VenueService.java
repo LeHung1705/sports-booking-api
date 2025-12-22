@@ -6,7 +6,11 @@ import com.example.booking_api.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
+import com.example.booking_api.event.VenueEvent;
+import com.example.booking_api.entity.enums.NotificationType;
 
+import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.time.*;
@@ -22,7 +26,9 @@ public class VenueService {
     private final ReviewRepository reviewRepository;
     private final CourtRepository courtRepository;   // Từ nhánh main
     private final BookingRepository bookingRepository; // Từ nhánh test-feat
+    private final ApplicationEventPublisher eventPublisher;
 
+    @Transactional // 👈 THÊM DÒNG NÀY ĐỂ TRIGGER EVENT LISTENER
     public VenueResponse createVenue(String firebaseUid, VenueCreateRequest req) {
         User owner = userRepository.findByFirebaseUid(firebaseUid)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -47,9 +53,14 @@ public class VenueService {
                 .bankName(req.getBankName())
                 .bankAccountNumber(req.getBankAccountNumber())
                 .bankAccountName(req.getBankAccountName())
-                .isActive(true)
+                .isActive(false) // Mặc định là false chờ duyệt
                 .build();
         Venue saved = venueRepository.save(v);
+
+        // 👇 PUBLISH EVENT
+        System.out.println("📢 [VenueService] Publishing VENUE_CREATED event for venue: " + saved.getId());
+        eventPublisher.publishEvent(new VenueEvent(this, saved, NotificationType.VENUE_CREATED));
+        System.out.println("📢 [VenueService] Event published.");
 
         return VenueResponse.builder()
                 .id(saved.getId())

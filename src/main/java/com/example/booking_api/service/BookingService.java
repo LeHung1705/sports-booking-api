@@ -140,7 +140,8 @@ public class BookingService {
 
         Booking saved = bookingRepository.save(booking);
 
-        eventPublisher.publishEvent(new BookingEvent(this, saved, NotificationType.BOOKING_CREATED));
+        // REMOVED: eventPublisher.publishEvent(new BookingEvent(this, saved, NotificationType.BOOKING_CREATED));
+        // Moved to markAsPaid to prevent spamming owner
         scheduleBookingReminder(saved);
 
         return BookingCreateResponse.builder()
@@ -383,8 +384,13 @@ public class BookingService {
 
         if (refundAmount.compareTo(BigDecimal.ZERO) > 0) {
             booking.setStatus(BookingStatus.REFUND_PENDING);
+            // 👇 Notify Owner: REFUND_REQUESTED
+            eventPublisher.publishEvent(new BookingEvent(this, booking, NotificationType.REFUND_REQUESTED));
         } else {
             booking.setStatus(BookingStatus.CANCELED);
+            // Notify User: BOOKING_CANCELLED (Already handled by BookingListener if needed, or explicitly here)
+            // Note: BookingListener handles BOOKING_CANCELLED.
+            eventPublisher.publishEvent(new BookingEvent(this, booking, NotificationType.BOOKING_CANCELLED));
         }
 
         booking.setCancelReason(req.getCancelReason());
@@ -413,7 +419,10 @@ public class BookingService {
             booking.setRefundAccountName(req.getRefundAccountName());
         }
         booking.setUpdatedAt(LocalDateTime.now());
-        bookingRepository.save(booking);
+        Booking saved = bookingRepository.save(booking);
+
+        // 👇 Notify Owner when User claims they have paid
+        eventPublisher.publishEvent(new BookingEvent(this, saved, NotificationType.BOOKING_CREATED));
 
         return getBookingDetail(firebaseUid, bookingId);
     }
@@ -465,6 +474,10 @@ public class BookingService {
                 .endTime(b.getEndTime())
                 .totalPrice(b.getTotalAmount())
                 .status(b.getStatus() != null ? b.getStatus().name() : null)
+                .refundAmount(b.getRefundAmount())
+                .refundBankName(b.getRefundBankName())
+                .refundAccountNumber(b.getRefundAccountNumber())
+                .refundAccountName(b.getRefundAccountName())
                 .build()).toList();
     }
 
@@ -532,7 +545,10 @@ public class BookingService {
 
         booking.setStatus(BookingStatus.CANCELED);
         booking.setUpdatedAt(LocalDateTime.now());
-        bookingRepository.save(booking);
+        Booking saved = bookingRepository.save(booking);
+
+        // 👇 Notify User: REFUND_COMPLETED
+        eventPublisher.publishEvent(new BookingEvent(this, saved, NotificationType.REFUND_COMPLETED));
 
         return getBookingDetail(firebaseUid, bookingId);
     }
