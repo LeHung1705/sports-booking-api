@@ -63,6 +63,12 @@ public class Venue {
     @Column(name = "bank_account_name")
     private String bankAccountName;
 
+    @Column(name = "open_time")
+    private java.time.LocalTime openTime;
+
+    @Column(name = "close_time")
+    private java.time.LocalTime closeTime;
+
     private Boolean isActive = false;
 
     @CreationTimestamp

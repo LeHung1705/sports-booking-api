@@ -70,6 +70,18 @@ public class AdminController {
         }
     }
 
+    // PUT /admin/venues/{id}/reject
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/venues/{id}/reject")
+    public ResponseEntity<?> rejectVenue(@PathVariable UUID id) {
+        try {
+            adminService.rejectVenue(id);
+            return ResponseEntity.ok("Venue rejected successfully");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Failed: " + e.getMessage());
+        }
+    }
+
     // PUT /admin/users/{id}/upgrade
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/users/{id}/upgrade")

@@ -23,7 +23,14 @@ public class VenueDetailResponse {
     private String bankName;
     private String bankAccountNumber;
     private String bankAccountName;
+    
+    @com.fasterxml.jackson.annotation.JsonFormat(shape = com.fasterxml.jackson.annotation.JsonFormat.Shape.STRING, pattern = "HH:mm")
+    private java.time.LocalTime openTime;
+    
+    @com.fasterxml.jackson.annotation.JsonFormat(shape = com.fasterxml.jackson.annotation.JsonFormat.Shape.STRING, pattern = "HH:mm")
+    private java.time.LocalTime closeTime;
 
+    private Boolean isActive;
     private Double avgRating;
     private Long reviewCount;
 
