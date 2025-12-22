@@ -1,23 +1,22 @@
 package com.example.booking_api.repository;
 
 import com.example.booking_api.entity.FcmToken;
+import com.example.booking_api.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
-
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
 
 public interface FcmTokenRepository extends JpaRepository<FcmToken, UUID> {
-    List<FcmToken> findByUser_Id(UUID userId);   // OK với @ManyToOne user
+    // Tìm token xem đã tồn tại chưa (bất kể của user nào)
     Optional<FcmToken> findByToken(String token);
-    boolean existsByToken(String token);
 
-    // ⬇️ GIỮ lại nếu nơi khác có dùng
+    // Tìm danh sách token của 1 user (để gửi thông báo)
+    List<FcmToken> findByUser(User user);
+
+    // Tìm token cụ thể của user (để xóa khi logout)
+    // Sửa lỗi: dùng findByUserAndToken thay vì findByUser_IdAndToken cho dễ hiểu
+    Optional<FcmToken> findByUserAndToken(User user, String token);
+
     void deleteByToken(String token);
-
-    // ⬇️ THÊM: xóa token nhưng ràng buộc đúng chủ sở hữu
-    void deleteByUser_IdAndToken(UUID userId, String token);
-
-    // (tuỳ chọn) hỗ trợ kiểm tra tồn tại theo chủ sở hữu
-    Optional<FcmToken> findByUser_IdAndToken(UUID userId, String token);
 }

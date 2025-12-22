@@ -1,6 +1,6 @@
 package com.example.booking_api.service;
 
-import com.example.booking_api.dto.NotificationResponse;
+import com.example.booking_api.entity.FcmToken;
 import com.example.booking_api.entity.Notification;
 import com.example.booking_api.entity.User;
 import com.example.booking_api.entity.enums.NotificationType;
@@ -11,118 +11,145 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
 
-    private final NotificationRepository notificationRepository;
-
-    // ⬇️ thêm vào để tạo + đẩy FCM
+    private final FcmTokenRepository tokenRepository;
     private final UserRepository userRepository;
-    private final FcmTokenRepository fcmTokenRepository;
-    private final FcmService fcmService;
-
-    /** GET /api/v1/notifications?read=... */
-    @Transactional(readOnly = true)
-    public List<NotificationResponse> getNotificationsForUser(String firebaseUid, Boolean read) {
-        List<Notification> notifications;
-
-        if (read == null) {
-            notifications = notificationRepository.findByFirebaseUid(firebaseUid);
-        } else {
-            notifications = notificationRepository.findByFirebaseUidAndRead(firebaseUid, read);
-        }
-
-        List<NotificationResponse> result = new ArrayList<>();
-        for (Notification n : notifications) {
-            result.add(NotificationResponse.fromEntity(n));
-        }
-        return result;
-    }
-
-    /** PUT /api/v1/notifications/{id}/read */
+    private final ExpoPushService expoPushService;
+    // 👇 BỔ SUNG: Inject thêm cái này
+    private final NotificationRepository notificationRepository;
+    // --- 1. Đăng ký Token ---
     @Transactional
-    public NotificationResponse markAsRead(String firebaseUid, UUID notificationId) {
-        Notification notification =
-                notificationRepository.findOneByIdAndFirebaseUid(notificationId, firebaseUid);
+    public void registerToken(String firebaseUid, String token, String deviceType) {
+        if (token == null || token.isBlank()) return;
 
-        if (notification == null) {
-            throw new IllegalArgumentException("Notification not found");
-        }
-
-        if (!notification.isRead()) {
-            notification.setRead(true);
-            notificationRepository.save(notification);
-        }
-
-        return NotificationResponse.fromEntity(notification);
-    }
-
-    // ================== CREATE + PUSH FCM ==================
-
-    /**
-     * Tạo thông báo cho chính user (theo firebaseUid), lưu DB và cố gắng đẩy FCM.
-     * Trả về entity đã lưu (để tương thích chữ ký cũ của bạn).
-     */
-    @Transactional
-    public Notification createNotification(
-            String firebaseUid,
-            NotificationType type,
-            String title,
-            String body
-    ) {
-        // 1) Lấy User từ firebaseUid
+        // ✅ ĐÚNG: Tìm user bằng Firebase UID
         User user = userRepository.findByFirebaseUid(firebaseUid)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> new RuntimeException("User not found with UID: " + firebaseUid));
 
-        // 2) Lưu thông báo vào DB
-        Notification saved = notificationRepository.save(
-                Notification.builder()
-                        .userId(user.getId())   // users.id (UUID) map sang BINARY(16)
-                        .type(type)
-                        .title(title)
-                        .body(body)
-                        .read(false)
-                        .build()
+        tokenRepository.findByToken(token).ifPresentOrElse(
+                existed -> {
+                    if (!Objects.equals(existed.getUser().getId(), user.getId())) {
+                        existed.setUser(user);
+                    }
+                    if (deviceType != null) existed.setDevice(deviceType);
+                    tokenRepository.save(existed);
+                },
+                () -> tokenRepository.save(
+                        FcmToken.builder()
+                                .user(user)
+                                .token(token)
+                                .device(deviceType) // "ios" hoặc "android"
+                                .build()
+                )
         );
+        System.out.println("✅ (Register) Đã lưu token cho user: " + user.getEmail());
+    }
 
-        // 3) Đẩy FCM cho tất cả thiết bị của user này (không làm fail transaction nếu FCM lỗi)
-        try {
-            List<String> tokens = fcmTokenRepository.findByUser_Id(user.getId())
-                    .stream()
-                    .map(t -> t.getToken())
-                    .toList();
+    // --- 2. Hủy Token ---
+    @Transactional
+    public void unregisterToken(String firebaseUid, String token) {
+        // ✅ ĐÚNG: Tìm user bằng Firebase UID
+        User user = userRepository.findByFirebaseUid(firebaseUid).orElse(null);
+        if (user == null) return;
 
-            if (!tokens.isEmpty()) {
-                fcmService.sendToTokens(tokens, title, body, Map.of(
-                        "type", type.name(),
-                        "notificationId", saved.getId().toString()
-                ));
-            }
-        } catch (Exception ignore) {
-            // Không để lỗi FCM làm rollback giao dịch lưu DB
+        tokenRepository.findByUserAndToken(user, token)
+                .ifPresent(tokenRepository::delete);
+
+        System.out.println("✅ (Unregister) Đã hủy token của user: " + user.getEmail());
+    }
+
+    // --- 3. Gửi thông báo (Hàm bạn đang bị lỗi ở đây) ---
+    public void sendNotificationToUser(String firebaseUid, String title, String body) {
+        System.out.println("🔍 Đang tìm User với UID: " + firebaseUid);
+
+        // ⚠️ SỬA LẠI CHỖ NÀY QUAN TRỌNG NHẤT:
+        // Cũ (Sai): findByEmail(firebaseUid) -> Log báo tìm email=? là sai.
+        // Mới (Đúng): findByFirebaseUid(firebaseUid)
+        User user = userRepository.findByFirebaseUid(firebaseUid).orElse(null);
+
+        if (user == null) {
+            System.err.println("❌ LỖI: Không tìm thấy User nào có UID là " + firebaseUid);
+            return;
         }
 
-        return saved;
+        List<FcmToken> tokens = tokenRepository.findByUser(user);
+
+        if (tokens.isEmpty()) {
+            System.err.println("⚠️ User " + user.getEmail() + " có tồn tại nhưng KHÔNG CÓ Token nào trong bảng fcm_tokens!");
+            return;
+        }
+
+        // Gửi cho tất cả token của user đó
+        for (FcmToken t : tokens) {
+            // Truyền null vì hàm test này không có bookingId
+            expoPushService.sendExpoNotification(t.getToken(), title, body, null);
+        }
     }
 
-    /**
-     * Helper nếu bạn muốn trả thẳng DTO về Controller.
-     */
+    // 👇 BỔ SUNG HÀM MỚI (Copy toàn bộ đoạn này vào cuối class)
     @Transactional
-    public NotificationResponse createNotificationAndReturnDto(
-            String firebaseUid,
-            NotificationType type,
-            String title,
-            String body
-    ) {
-        return NotificationResponse.fromEntity(
-                createNotification(firebaseUid, type, title, body)
-        );
+    public void sendAndSaveNotification(User receiver, String title, String body, UUID bookingId, NotificationType type) {
+        // 1. LƯU VÀO DATABASE (Phần còn thiếu)
+        try {
+            Notification noti = Notification.builder()
+                    .userId(receiver.getId()) // Code bạn dùng userId dạng UUID
+                    .title(title)
+                    .body(body)
+                    .bookingId(bookingId)
+                    .type(type)
+                    .read(false)
+                    .createdAt(java.time.OffsetDateTime.now()) // 👈 THÊM DÒNG NÀY (Gán cứng thời gian luôn)
+                    .build();
+
+            notificationRepository.save(noti);
+            System.out.println("💾 Đã lưu thông báo vào DB cho: " + receiver.getEmail());
+        } catch (Exception e) {
+            System.err.println("❌ Lỗi lưu DB: " + e.getMessage());
+        }
+
+        // 2. GỬI PUSH (Tái sử dụng logic cũ hoặc copy lại logic gửi push)
+        // 2. GỬI PUSH (Cập nhật mới)
+        List<FcmToken> tokens = tokenRepository.findByUser(receiver);
+        if (!tokens.isEmpty()) {
+            // 👇 Tạo gói dữ liệu để gửi kèm
+            Map<String, String> extraData = new HashMap<>();
+            extraData.put("bookingId", bookingId.toString());
+            extraData.put("type", type.name()); // Để App biết là CREATED hay CONFIRMED
+
+            for (FcmToken t : tokens) {
+                // 👇 Gọi hàm mới có truyền thêm extraData
+                expoPushService.sendExpoNotification(t.getToken(), title, body, extraData);
+            }
+        }
+        }
+    // 👇 BỔ SUNG HÀM LẤY DANH SÁCH (Cho Controller gọi)
+    public List<Notification> getMyNotifications(String firebaseUid) {
+        User user = userRepository.findByFirebaseUid(firebaseUid)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return notificationRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
     }
+    // Hàm xử lý đánh dấu 1 cái
+    public void markAsRead(UUID id) {
+        Notification notification = notificationRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Notification not found"));
+
+        notification.setRead(true); // set is_read = true
+        notificationRepository.save(notification);
+    }
+
+    // Hàm xử lý đánh dấu tất cả (Optional)
+    public void markAllAsRead(UUID userId) {
+        List<Notification> list = notificationRepository.findAllByUserId(userId);
+        for (Notification n : list) {
+            n.setRead(true);
+        }
+        notificationRepository.saveAll(list);
+    }
+
+
 }
