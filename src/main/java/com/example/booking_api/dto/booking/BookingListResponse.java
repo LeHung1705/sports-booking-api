@@ -18,6 +18,7 @@ public class BookingListResponse {
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private BigDecimal totalPrice;
+    private BigDecimal depositAmount;
     private String status;
     
     // Refund Info
