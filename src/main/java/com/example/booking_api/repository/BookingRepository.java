@@ -120,4 +120,6 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     );
 
     List<Booking> findByStatusAndCreatedAtBefore(BookingStatus status, LocalDateTime createdAt);
+
+    List<Booking> findByStatusAndEndTimeBefore(BookingStatus status, LocalDateTime endTime);
 }

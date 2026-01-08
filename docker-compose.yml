@@ -1,0 +1,32 @@
+services:
+  # Database Service
+  mysqldb:
+    image: mysql:8.0
+    container_name: booking_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: Lehung1705
+      MYSQL_DATABASE: booking_api
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  # Backend API Service
+  api:
+    build: .
+    container_name: booking_backend
+    depends_on:
+      - mysqldb
+    ports:
+      - "8080:8080"
+    environment:
+      # Docker Compose sử dụng tên service 'mysqldb' làm hostname
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysqldb:3306/booking_api?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: Lehung1705
+      # Các cấu hình khác có thể ghi đè tại đây nếu cần
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+
+volumes:
+  mysql_data:
