@@ -20,6 +20,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     // Tìm user theo Firebase UID (dùng cho AuthGuard và UserService)
     Optional<User> findByFirebaseUid(String firebaseUid);
 
+    // Tìm tất cả user có role cụ thể (VD: ADMIN)
+    java.util.List<User> findByRole(UserRole role);
+
     // Kiểm tra xem role có tồn tại không (dùng để check admin đầu tiên)
     boolean existsByRole(UserRole role);
 }

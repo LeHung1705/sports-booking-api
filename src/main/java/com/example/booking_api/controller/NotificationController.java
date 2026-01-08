@@ -1,16 +1,15 @@
 package com.example.booking_api.controller;
 
-import com.example.booking_api.dto.NotificationResponse;
-import com.example.booking_api.dto.notification.PushTestRequest;
-import com.example.booking_api.entity.enums.NotificationType;
+import com.example.booking_api.entity.User;
 import com.example.booking_api.service.NotificationService;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -20,50 +19,63 @@ public class NotificationController {
 
     private final NotificationService notificationService;
 
-    // Lấy firebaseUid từ SecurityContext (đã set trong FirebaseAuthFilter)
-    private String getCurrentFirebaseUid() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        return (String) authentication.getPrincipal();
+    // 1. Đăng ký Token (Khi Login) - Thay thế cho DeviceController.register
+    @PostMapping("/register")
+    public ResponseEntity<?> registerToken(@RequestBody RegisterTokenRequest req) {
+        // Lấy Email của user đang đăng nhập từ Token
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        notificationService.registerToken(email, req.getToken(), req.getDeviceType());
+
+        return ResponseEntity.ok(Map.of("message", "Token registered successfully"));
     }
 
-    // GET /api/v1/notifications?read=true/false
-    @GetMapping
-    public ResponseEntity<List<NotificationResponse>> getMyNotifications(
-            @RequestParam(value = "read", required = false) Boolean read
-    ) {
-        String firebaseUid = getCurrentFirebaseUid();
-        List<NotificationResponse> responses =
-                notificationService.getNotificationsForUser(firebaseUid, read);
+    // 2. Hủy Token (Khi Logout) - Thay thế cho DeviceController.unregister
+    @PostMapping("/unregister")
+    public ResponseEntity<?> unregisterToken(@RequestBody UnregisterTokenRequest req) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        return ResponseEntity.ok(responses);
+        notificationService.unregisterToken(email, req.getToken());
+
+        return ResponseEntity.ok(Map.of("message", "Token unregistered"));
     }
 
-    // PUT /api/v1/notifications/{id}/read
+    // 3. Test gửi thông báo (Giữ nguyên)
+    @PostMapping("/test-send")
+    public ResponseEntity<?> sendTestNotification(@RequestBody SendRequest req) {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        notificationService.sendNotificationToUser(email, req.getTitle(), req.getBody());
+        return ResponseEntity.ok(Map.of("message", "Sent"));
+    }
+    // 👇 BỔ SUNG API MỚI
+    @GetMapping("/my-notifications")
+    public ResponseEntity<?> getMyNotifications() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        return ResponseEntity.ok(notificationService.getMyNotifications(email));
+    }
+    // API đánh dấu 1 thông báo là đã đọc
     @PutMapping("/{id}/read")
-    public ResponseEntity<NotificationResponse> markAsRead(@PathVariable("id") UUID id) {
-        String firebaseUid = getCurrentFirebaseUid();
-
-        NotificationResponse response =
-                notificationService.markAsRead(firebaseUid, id);
-
-        return ResponseEntity.ok(response);
+    public ResponseEntity<Void> markAsRead(@PathVariable UUID id) {
+        notificationService.markAsRead(id);
+        return ResponseEntity.ok().build();
     }
 
-    // POST /api/v1/notifications/test  -> tạo Notification + đẩy FCM để test nhanh
-    @PostMapping("/test")
-    public ResponseEntity<NotificationResponse> pushTest(@RequestBody PushTestRequest req) {
-        String currentUid = getCurrentFirebaseUid();
-        String targetUid = (req.getTargetFirebaseUid() == null || req.getTargetFirebaseUid().isBlank())
-                ? currentUid
-                : req.getTargetFirebaseUid();
 
-        NotificationType type = (req.getType() == null) ? NotificationType.SYSTEM : req.getType();
-        String title = (req.getTitle() == null || req.getTitle().isBlank()) ? "Test" : req.getTitle();
-        String body  = (req.getBody()  == null || req.getBody().isBlank())  ? "FCM test message" : req.getBody();
+    // --- DTO Classes ---
+    @Data
+    public static class RegisterTokenRequest {
+        private String token;
+        private String deviceType; // "android" hoặc "ios"
+    }
 
-        NotificationResponse res = notificationService.createNotificationAndReturnDto(
-                targetUid, type, title, body
-        );
-        return ResponseEntity.ok(res);
+    @Data
+    public static class UnregisterTokenRequest {
+        private String token;
+    }
+
+    @Data
+    public static class SendRequest {
+        private String title;
+        private String body;
     }
 }

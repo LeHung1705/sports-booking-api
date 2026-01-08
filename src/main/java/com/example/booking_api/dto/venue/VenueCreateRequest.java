@@ -58,7 +58,12 @@ public class VenueCreateRequest {
     @Size(max = 50, message = "Số tài khoản tối đa 50 ký tự")
     private String bankAccountNumber;
 
-    @Size(max = 100, message = "Tên chủ tài khoản tối đa 100 ký tự")
+    @NotBlank(message = "Tên chủ tài khoản không được để trống")
     private String bankAccountName;
 
+    @com.fasterxml.jackson.annotation.JsonFormat(shape = com.fasterxml.jackson.annotation.JsonFormat.Shape.STRING, pattern = "HH:mm")
+    private java.time.LocalTime openTime;
+
+    @com.fasterxml.jackson.annotation.JsonFormat(shape = com.fasterxml.jackson.annotation.JsonFormat.Shape.STRING, pattern = "HH:mm")
+    private java.time.LocalTime closeTime;
 }

@@ -12,7 +12,11 @@ import com.google.firebase.auth.ListUsersPage;
 import com.google.firebase.auth.UserRecord;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
+import com.example.booking_api.event.VenueEvent;
+import com.example.booking_api.entity.enums.NotificationType;
 
+import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -25,6 +29,7 @@ public class AdminService {
 
     private final UserRepository userRepository;
     private final VenueRepository venueRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public Map<String, Long> getStats() {
         Map<String, Long> stats = new HashMap<>();
@@ -34,11 +39,27 @@ public class AdminService {
         return stats;
     }
 
+    @Transactional // 👈 THÊM DÒNG NÀY ĐỂ TRIGGER EVENT LISTENER
     public void approveVenue(UUID venueId) {
         Venue venue = venueRepository.findById(venueId)
                 .orElseThrow(() -> new RuntimeException("Venue not found"));
         venue.setIsActive(true);
-        venueRepository.save(venue);
+        Venue saved = venueRepository.save(venue);
+
+        // 👇 PUBLISH EVENT
+        eventPublisher.publishEvent(new VenueEvent(this, saved, NotificationType.VENUE_APPROVED));
+    }
+
+    @Transactional
+    public void rejectVenue(UUID venueId) {
+        Venue venue = venueRepository.findById(venueId)
+                .orElseThrow(() -> new RuntimeException("Venue not found"));
+
+        // Notify first before deleting (so we have the data)
+        eventPublisher.publishEvent(new VenueEvent(this, venue, NotificationType.VENUE_REJECTED));
+
+        // Delete the venue (so it doesn't appear in lists)
+        venueRepository.delete(venue);
     }
 
     public List<Venue> getPendingVenues() {

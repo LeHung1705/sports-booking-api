@@ -19,6 +19,7 @@ public class Court {
 
     @ManyToOne
     @JoinColumn(name = "venue_id", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Venue venue;
 
     private String name;

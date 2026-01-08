@@ -20,7 +20,8 @@ public interface VenueRepository extends JpaRepository<Venue, UUID> {
         SELECT DISTINCT v.id
         FROM venues v
         LEFT JOIN courts c ON c.venue_id = v.id
-        WHERE (:city IS NULL OR v.city = :city)
+        WHERE v.is_active = TRUE
+          AND (:city IS NULL OR v.city = :city)
           AND (:sport IS NULL OR c.sport = :sport)
           AND (
                :q IS NULL OR
@@ -54,6 +55,7 @@ public interface VenueRepository extends JpaRepository<Venue, UUID> {
     // 👇 [BỔ SUNG VÀO ĐÂY]
     List<Venue> findByOwner_FirebaseUid(String firebaseUid);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"owner"})
     List<Venue> findByIsActiveFalse();
 
     long countByIsActiveFalse();
