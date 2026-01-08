@@ -18,11 +18,14 @@ public interface ReviewRepository extends JpaRepository<Review, UUID> {
     }
 
     // Lấy page review theo venue (không fetch join để tránh lỗi count query)
-    @Query("""
+    @Query(value = """
         select r
         from Review r
+        left join fetch r.user
         where r.venue.id = :venueId
         order by r.createdAt desc
+    """, countQuery = """
+        select count(r) from Review r where r.venue.id = :venueId
     """)
     Page<Review> findByVenue(@Param("venueId") UUID venueId, Pageable pageable);
 
